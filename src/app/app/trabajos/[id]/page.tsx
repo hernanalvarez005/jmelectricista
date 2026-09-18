@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AddJobMaterialDialog } from "@/components/jobs/add-job-material-dialog";
 import { JobMaterialsList } from "@/components/jobs/job-materials-list";
+import { JobPaymentsPanel } from "@/components/jobs/job-payments-panel";
 import { JobSessionDialog } from "@/components/jobs/job-session-dialog";
 import { JobSessionsList } from "@/components/jobs/job-sessions-list";
 import { JobStatusSelect } from "@/components/jobs/job-status-select";
@@ -12,18 +13,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { requireCurrentOrg } from "@/lib/data/current-org";
-import { getJobDetail, sumActualMinutes, sumSessionMinutes } from "@/lib/data/jobs";
+import { canAdminister, requireCurrentOrg } from "@/lib/data/current-org";
+import { getJobDetail } from "@/lib/data/jobs";
 import { getJobFormOptions } from "@/lib/data/job-form-options";
 import { getJobMaterials } from "@/lib/data/job-materials";
 import { listMaterialsForQuoteItems } from "@/lib/data/materials";
 import { getOrgMembers } from "@/lib/data/members";
+import {
+  getJobFinancialStatus,
+  getJobPayments,
+  listPaymentAccounts,
+  listPaymentMethods,
+} from "@/lib/data/payments";
 import { getJobQuotes } from "@/lib/data/quotes";
 import { listSuppliers } from "@/lib/data/suppliers";
-import { formatDate, formatDateTime } from "@/lib/format/dates";
-import { formatMinutes, formatMinutesCompact } from "@/lib/format/duration";
+import { formatDateOnly, formatDateTime } from "@/lib/format/dates";
+import { formatMinutes, formatMinutesCompact, formatVarianceMinutes } from "@/lib/format/duration";
 import { formatMoney } from "@/lib/format/money";
+import { calculateJobTimeStatus } from "@/lib/time/job-time-status";
 import { jobPriorityLabel } from "@/lib/validations/job";
+import { paymentStatusLabels } from "@/lib/validations/payment";
 import { quoteStatusLabels } from "@/lib/validations/quote";
 
 export default async function JobDetailPage({
@@ -32,28 +41,52 @@ export default async function JobDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { organization } = await requireCurrentOrg();
+  const { organization, role } = await requireCurrentOrg();
 
-  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials] = await Promise.all([
-    getJobDetail(organization.id, id),
-    getJobFormOptions(organization.id),
-    getOrgMembers(organization.id),
-    getJobMaterials(organization.id, id),
-    listSuppliers(organization.id),
-    getJobQuotes(organization.id, id),
-    listMaterialsForQuoteItems(organization.id),
-  ]);
+  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts] =
+    await Promise.all([
+      getJobDetail(organization.id, id),
+      getJobFormOptions(organization.id),
+      getOrgMembers(organization.id),
+      getJobMaterials(organization.id, id),
+      listSuppliers(organization.id),
+      getJobQuotes(organization.id, id),
+      listMaterialsForQuoteItems(organization.id),
+      getJobFinancialStatus(organization.id, id),
+      getJobPayments(organization.id, id),
+      listPaymentMethods(organization.id, { activeOnly: true }),
+      listPaymentAccounts(organization.id, { activeOnly: true }),
+    ]);
 
   if (!detail) notFound();
 
-  const { job, clientName, addressLabel, jobTypeName, statusName, assignedMemberName, sessions, history } =
+  const { job, clientName, addressLabel, jobTypeName, statusName, statusIsClosed, assignedMemberName, sessions, activity } =
     detail;
 
   const membersById = Object.fromEntries(members.map((m) => [m.id, m.fullName]));
-  const scheduledMinutes = sumSessionMinutes(sessions, ["scheduled", "completed"]);
-  const executedMinutes = sumActualMinutes(sessions);
+  const timeStatus = calculateJobTimeStatus(job.estimated_minutes, sessions);
   const materialsWithMissing = jobMaterials.filter((m) => m.missing > 0).length;
+  const materialsWithOverconsumption = jobMaterials.filter((m) => m.varianceQuantity > 0).length;
   const latestQuote = quotes[0];
+  const materialsPending = jobMaterials.filter((m) => m.remainingQuantity > 0).length;
+
+  // Advertencias NO bloqueantes: un trabajo cerrado (status.is_closed, no por
+  // nombre) con información pendiente no debe mostrarse como análisis completo.
+  const closeWarnings: string[] = [];
+  if (statusIsClosed) {
+    if (financialStatus.contractedAmount === null) {
+      closeWarnings.push("No tiene cotización aceptada.");
+    } else if ((financialStatus.outstandingAmount ?? 0) > 0) {
+      closeWarnings.push(`${formatMoney(financialStatus.outstandingAmount ?? 0, organization.currency)} por cobrar.`);
+    }
+    if (timeStatus.completedSessionsWithoutActualTime > 0) {
+      const n = timeStatus.completedSessionsWithoutActualTime;
+      closeWarnings.push(`${n} sesión${n === 1 ? "" : "es"} sin tiempo real registrado.`);
+    }
+    if (materialsPending > 0) {
+      closeWarnings.push(`${materialsPending} material${materialsPending === 1 ? "" : "es"} con cantidad pendiente de consumir.`);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,10 +117,21 @@ export default async function JobDetailPage({
           <TabsTrigger value="agenda">Agenda</TabsTrigger>
           <TabsTrigger value="materiales">Materiales</TabsTrigger>
           <TabsTrigger value="cotizacion">Cotización</TabsTrigger>
+          <TabsTrigger value="cobros">Cobros</TabsTrigger>
           <TabsTrigger value="actividad">Actividad</TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumen" className="mt-4 flex flex-col gap-6">
+          {closeWarnings.length > 0 && (
+            <div className="rounded-lg border border-warning/50 bg-warning/5 p-4 text-sm">
+              <p className="font-medium text-warning">Trabajo finalizado con información pendiente:</p>
+              <ul className="mt-1 list-disc pl-5">
+                {closeWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Trabajo</CardTitle>
@@ -104,19 +148,30 @@ export default async function JobDetailPage({
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardHeader>
-                <CardTitle>Planificación</CardTitle>
+                <CardTitle>Tiempo</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-2 text-sm">
-                <Row label="Duración estimada" value={formatMinutesCompact(job.estimated_minutes)} />
-                <Row label="Horas programadas" value={formatMinutes(scheduledMinutes)} />
-                <Row label="Horas reales" value={formatMinutes(executedMinutes)} />
+                <Row label="Estimado" value={formatMinutesCompact(timeStatus.estimatedMinutes)} />
+                <Row label="Programado" value={formatMinutes(timeStatus.plannedMinutes)} />
+                <Row label="Real" value={formatMinutes(timeStatus.actualMinutes)} />
+                <Row
+                  label="Desvío"
+                  value={
+                    <span className={timeStatus.varianceMinutes != null && timeStatus.varianceMinutes > 0 ? "text-warning" : undefined}>
+                      {formatVarianceMinutes(timeStatus.varianceMinutes, timeStatus.variancePercentage)}
+                    </span>
+                  }
+                />
                 <Row
                   label="Fecha objetivo"
-                  value={job.target_date ? formatDate(`${job.target_date}T00:00:00Z`) : "-"}
+                  value={job.target_date ? formatDateOnly(job.target_date) : "-"}
                 />
+                {!timeStatus.actualTimeComplete && (
+                  <p className="text-xs text-warning">Datos reales incompletos.</p>
+                )}
               </CardContent>
             </Card>
 
@@ -132,6 +187,16 @@ export default async function JobDetailPage({
                   value={
                     materialsWithMissing > 0 ? (
                       <span className="font-medium text-warning">{materialsWithMissing}</span>
+                    ) : (
+                      "0"
+                    )
+                  }
+                />
+                <Row
+                  label="Con sobreconsumo"
+                  value={
+                    materialsWithOverconsumption > 0 ? (
+                      <span className="font-medium text-info">{materialsWithOverconsumption}</span>
                     ) : (
                       "0"
                     )
@@ -160,6 +225,33 @@ export default async function JobDetailPage({
                 ) : (
                   <p className="text-muted-foreground">Sin cotización.</p>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Finanzas</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2 text-sm">
+                {financialStatus.contractedAmount === null ? (
+                  <p className="text-muted-foreground">Sin cotización aceptada.</p>
+                ) : (
+                  <>
+                    <Row label="Contratado" value={formatMoney(financialStatus.contractedAmount, organization.currency)} />
+                    <Row label="Cobrado" value={formatMoney(financialStatus.collectedAmount, organization.currency)} />
+                    <Row
+                      label="Pendiente"
+                      value={
+                        <span className={financialStatus.outstandingAmount! > 0 ? "font-medium text-warning" : "text-success"}>
+                          {formatMoney(financialStatus.outstandingAmount ?? 0, organization.currency)}
+                        </span>
+                      }
+                    />
+                  </>
+                )}
+                <Badge variant="outline" className="w-fit">
+                  {paymentStatusLabels[financialStatus.paymentStatus]}
+                </Badge>
               </CardContent>
             </Card>
           </div>
@@ -241,25 +333,62 @@ export default async function JobDetailPage({
           </Card>
         </TabsContent>
 
+        <TabsContent value="cobros" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cobros</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <JobPaymentsPanel
+                jobId={job.id}
+                currency={organization.currency}
+                timezone={organization.timezone}
+                financialStatus={financialStatus}
+                payments={payments}
+                paymentMethods={paymentMethods}
+                paymentAccounts={paymentAccounts}
+                jobStatuses={options.statuses}
+                canVoid={canAdminister(role)}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="actividad" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Actividad</CardTitle>
             </CardHeader>
             <CardContent>
-              {history.length === 0 ? (
+              {activity.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Sin actividad registrada.</p>
               ) : (
                 <div className="flex flex-col divide-y">
-                  {history.map((entry) => (
+                  {activity.map((entry) => (
                     <div key={entry.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                       <span>
-                        {entry.fromStatusName ? `${entry.fromStatusName} → ` : "Creado en "}
-                        <span className="font-medium">{entry.toStatusName}</span>
+                        {entry.kind === "status" && (
+                          <>
+                            {entry.fromStatusName ? `${entry.fromStatusName} → ` : "Creado en "}
+                            <span className="font-medium">{entry.toStatusName}</span>
+                          </>
+                        )}
+                        {entry.kind === "payment_registered" && (
+                          <>
+                            Cobro registrado:{" "}
+                            <span className="font-medium">
+                              {formatMoney(entry.amount, organization.currency)}
+                            </span>{" "}
+                            por {entry.methodName}
+                          </>
+                        )}
+                        {entry.kind === "payment_voided" && (
+                          <span className="text-destructive">
+                            Cobro anulado: {formatMoney(entry.amount, organization.currency)} — {entry.voidReason}
+                          </span>
+                        )}
                       </span>
-                      <span className="text-muted-foreground">
-                        {formatDateTime(entry.changedAt, organization.timezone)}
-                      </span>
+                      <span className="text-muted-foreground">{formatDateTime(entry.at, organization.timezone)}</span>
                     </div>
                   ))}
                 </div>

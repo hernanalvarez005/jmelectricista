@@ -14,3 +14,17 @@ export const jobSessionSchema = z
   });
 
 export type JobSessionInput = z.infer<typeof jobSessionSchema>;
+
+/** Mismo shape que jobSessionSchema (fecha + hora), reutilizado para el tiempo real. */
+export const actualTimeSchema = z
+  .object({
+    date: z.string().min(1, "Elegí una fecha"),
+    startTime: z.string().min(1, "Elegí una hora de inicio"),
+    endTime: z.string().min(1, "Elegí una hora de fin"),
+  })
+  .refine((data) => data.endTime > data.startTime, {
+    message: "La hora de fin debe ser posterior a la de inicio",
+    path: ["endTime"],
+  });
+
+export type ActualTimeInput = z.infer<typeof actualTimeSchema>;

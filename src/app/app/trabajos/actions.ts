@@ -6,9 +6,10 @@ import { canOperate, requireCurrentOrg } from "@/lib/data/current-org";
 import { createClient as createSupabaseClient } from "@/lib/supabase/server";
 import { toMinutes } from "@/lib/format/duration";
 import { jobSchema, type JobInput } from "@/lib/validations/job";
-import { jobSessionSchema, type JobSessionInput } from "@/lib/validations/session";
+import { actualTimeSchema, jobSessionSchema, type ActualTimeInput, type JobSessionInput } from "@/lib/validations/session";
 
 type ActionResult = { error: string } | { id: string };
+type SimpleResult = { error: string } | { ok: true };
 
 function combineDateAndTime(date: string, time: string): string {
   return new Date(`${date}T${time}:00`).toISOString();
@@ -143,15 +144,25 @@ export async function createJobSessionAction(
 export async function updateJobSessionStatusAction(
   jobId: string,
   sessionId: string,
-  status: "completed" | "cancelled"
+  status: "completed" | "cancelled",
+  actualTime?: ActualTimeInput
 ): Promise<ActionResult> {
   const { organization, role } = await requireCurrentOrg();
   if (!canOperate(role)) return { error: "No tenés permiso para modificar sesiones." };
 
+  let actualStartAt: string | undefined;
+  let actualEndAt: string | undefined;
+  if (status === "completed" && actualTime) {
+    const parsed = actualTimeSchema.safeParse(actualTime);
+    if (!parsed.success) return { error: "Revisá el tiempo real ingresado." };
+    actualStartAt = combineDateAndTime(parsed.data.date, parsed.data.startTime);
+    actualEndAt = combineDateAndTime(parsed.data.date, parsed.data.endTime);
+  }
+
   const supabase = await createSupabaseClient();
   const { error } = await supabase
     .from("job_sessions")
-    .update({ status })
+    .update({ status, actual_start_at: actualStartAt, actual_end_at: actualEndAt })
     .eq("id", sessionId)
     .eq("organization_id", organization.id);
 
@@ -161,4 +172,32 @@ export async function updateJobSessionStatusAction(
   revalidatePath("/app/agenda");
   revalidatePath("/app");
   return { id: sessionId };
+}
+
+/** Corrige el tiempo real de una sesión ya completada (cargado mal, o completada sin tiempo real). */
+export async function updateSessionActualTimeAction(
+  jobId: string,
+  sessionId: string,
+  actualTime: ActualTimeInput
+): Promise<SimpleResult> {
+  const parsed = actualTimeSchema.safeParse(actualTime);
+  if (!parsed.success) return { error: "Revisá el tiempo real ingresado." };
+
+  const { organization, role } = await requireCurrentOrg();
+  if (!canOperate(role)) return { error: "No tenés permiso para modificar sesiones." };
+
+  const supabase = await createSupabaseClient();
+  const { error } = await supabase
+    .from("job_sessions")
+    .update({
+      actual_start_at: combineDateAndTime(parsed.data.date, parsed.data.startTime),
+      actual_end_at: combineDateAndTime(parsed.data.date, parsed.data.endTime),
+    })
+    .eq("id", sessionId)
+    .eq("organization_id", organization.id);
+
+  if (error) return { error: "No se pudo actualizar el tiempo real." };
+
+  revalidatePath(`/app/trabajos/${jobId}`);
+  return { ok: true };
 }
