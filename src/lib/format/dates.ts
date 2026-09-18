@@ -20,6 +20,20 @@ export function formatDate(iso: string, timezone: string = DEFAULT_TIMEZONE): st
   }).format(new Date(iso));
 }
 
+/**
+ * Para columnas `date` puras (sin hora, ej. payment_date, target_date):
+ * formatea "YYYY-MM-DD" directamente como texto, sin construir un `Date` ni
+ * pasar por timezone. `formatDate(`${dateKey}T00:00:00Z`, tz)` se ve tentador
+ * para reusar el mismo formatter, pero en un timezone de offset negativo
+ * (ej. Argentina, UTC-3) la medianoche UTC cae en las 21:00 del día
+ * anterior, y el valor se muestra un día antes del real. Una fecha
+ * calendario no tiene componente horario que convertir.
+ */
+export function formatDateOnly(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export function formatTime(iso: string, timezone: string = DEFAULT_TIMEZONE): string {
   return new Intl.DateTimeFormat("es-AR", {
     timeZone: timezone,

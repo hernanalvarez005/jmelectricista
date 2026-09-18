@@ -24,3 +24,12 @@ export function formatMinutesCompact(totalMinutes: number | null | undefined): s
   if (totalMinutes == null) return "-";
   return formatMinutes(totalMinutes);
 }
+
+/** e.g. +120 min (+20%) / -60 min (-10%). Sin signo cuando la diferencia es 0. */
+export function formatVarianceMinutes(minutes: number | null, percentage: number | null): string {
+  if (minutes == null) return "-";
+  const sign = minutes > 0 ? "+" : minutes < 0 ? "-" : "";
+  const magnitude = formatMinutes(Math.abs(minutes));
+  const percentagePart = percentage != null ? ` (${percentage > 0 ? "+" : ""}${percentage}%)` : "";
+  return `${sign}${magnitude}${percentagePart}`;
+}

@@ -4,6 +4,7 @@ import {
   CalendarDays,
   FileText,
   LayoutDashboard,
+  Receipt,
   Settings,
   Truck,
   Users,
@@ -25,6 +26,7 @@ export const mainNavItems: NavItem[] = [
   { title: "Cotizaciones", href: "/app/cotizaciones", icon: FileText },
   { title: "Materiales", href: "/app/materiales", icon: Boxes },
   { title: "Proveedores", href: "/app/proveedores", icon: Truck },
+  { title: "Cobros", href: "/app/cobros", icon: Receipt },
 ];
 
 export const footerNavItems: NavItem[] = [

@@ -22,6 +22,17 @@ export function addDaysToKey(dateKey: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function addMonthsToKey(dateKey: string, months: number): string {
+  const d = new Date(`${dateKey}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "YYYY-MM-01" para el mes que contiene dateKey. */
+export function monthStartKey(dateKey: string): string {
+  return `${dateKey.slice(0, 7)}-01`;
+}
+
 export function mondayOfWeek(dateKey: string): string {
   const weekday = weekdayIndexForDateKey(dateKey);
   const diff = weekday === 0 ? -6 : 1 - weekday;

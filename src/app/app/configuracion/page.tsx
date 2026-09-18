@@ -2,18 +2,23 @@ import { BusinessHoursPanel } from "@/components/settings/business-hours-panel";
 import { JobStatusesPanel } from "@/components/settings/job-statuses-panel";
 import { JobTypesPanel } from "@/components/settings/job-types-panel";
 import { OrganizationForm } from "@/components/settings/organization-form";
+import { PaymentAccountsPanel } from "@/components/settings/payment-accounts-panel";
+import { PaymentMethodsPanel } from "@/components/settings/payment-methods-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getBusinessHours } from "@/lib/data/business-hours";
 import { requireCurrentOrg } from "@/lib/data/current-org";
+import { listPaymentAccounts, listPaymentMethods } from "@/lib/data/payments";
 import { listJobStatusesForSettings, listJobTypesForSettings } from "@/lib/data/settings";
 
 export default async function ConfiguracionPage() {
   const { organization } = await requireCurrentOrg();
 
-  const [jobTypes, jobStatuses, businessHours] = await Promise.all([
+  const [jobTypes, jobStatuses, businessHours, paymentMethods, paymentAccounts] = await Promise.all([
     listJobTypesForSettings(organization.id),
     listJobStatusesForSettings(organization.id),
     getBusinessHours(organization.id),
+    listPaymentMethods(organization.id),
+    listPaymentAccounts(organization.id),
   ]);
 
   return (
@@ -26,6 +31,8 @@ export default async function ConfiguracionPage() {
           <TabsTrigger value="tipos">Tipos de trabajo</TabsTrigger>
           <TabsTrigger value="estados">Estados</TabsTrigger>
           <TabsTrigger value="horarios">Horarios laborales</TabsTrigger>
+          <TabsTrigger value="medios">Medios de pago</TabsTrigger>
+          <TabsTrigger value="cuentas">Cuentas de cobro</TabsTrigger>
         </TabsList>
         <TabsContent value="negocio" className="mt-4">
           <OrganizationForm organization={organization} />
@@ -38,6 +45,12 @@ export default async function ConfiguracionPage() {
         </TabsContent>
         <TabsContent value="horarios" className="mt-4">
           <BusinessHoursPanel businessHours={businessHours} />
+        </TabsContent>
+        <TabsContent value="medios" className="mt-4">
+          <PaymentMethodsPanel paymentMethods={paymentMethods} />
+        </TabsContent>
+        <TabsContent value="cuentas" className="mt-4">
+          <PaymentAccountsPanel paymentAccounts={paymentAccounts} />
         </TabsContent>
       </Tabs>
     </div>

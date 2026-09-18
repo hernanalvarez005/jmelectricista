@@ -188,7 +188,14 @@ async function transitionQuote(quoteId: string, jobId: string, status: string): 
 
   const supabase = await createSupabaseClient();
   const { error } = await supabase.from("quotes").update({ status }).eq("id", quoteId);
-  if (error) return { error: "No se pudo actualizar el estado de la cotización." };
+  if (error) {
+    // Índice único parcial quotes_one_accepted_per_job: un trabajo no puede
+    // tener dos cotizaciones "accepted" al mismo tiempo.
+    if (error.code === "23505" && error.message.includes("quotes_one_accepted_per_job")) {
+      return { error: "Ya existe una cotización aceptada para este trabajo." };
+    }
+    return { error: "No se pudo actualizar el estado de la cotización." };
+  }
   revalidateQuote(jobId, quoteId);
   return { ok: true };
 }
