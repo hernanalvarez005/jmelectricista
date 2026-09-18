@@ -44,7 +44,44 @@ export function MaterialsTable({
 
   return (
     <>
-      <div className="rounded-lg border">
+      {/* Mobile: cards. Evita la tabla horizontal ilegible en celular. */}
+      <div className="flex flex-col gap-3 sm:hidden">
+        {materials.map((m) => (
+          <div key={m.id} className="rounded-lg border bg-card p-4">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/app/materiales/${m.id}`} className="font-medium hover:underline">
+                {m.name}
+              </Link>
+              <Badge variant={m.active ? "default" : "secondary"}>
+                {m.active ? "Activo" : "Inactivo"}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {m.categoryName ?? "Sin categoría"} · {m.unitSymbol}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Stock</p>
+                <p className={`flex items-center gap-1 font-medium ${m.lowStock ? "text-warning" : ""}`}>
+                  {m.lowStock && <AlertTriangle className="size-3.5" />}
+                  {formatQuantity(m.currentStock, m.unitSymbol)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Último costo</p>
+                <p className="font-medium">
+                  {m.lastPrice != null ? formatMoney(m.lastPrice, currency) : "-"}
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setEditing(m)}>
+              Editar
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden rounded-lg border sm:block">
         <Table>
           <TableHeader>
             <TableRow>

@@ -177,6 +177,36 @@ export async function getMaterialDetail(orgId: string, materialId: string): Prom
   };
 }
 
+export type MaterialForQuoteItem = { id: string; name: string; unitSymbol: string; lastPrice: number | null };
+
+export async function listMaterialsForQuoteItems(orgId: string): Promise<MaterialForQuoteItem[]> {
+  const supabase = await createClient();
+  const { data: materials, error } = await supabase
+    .from("materials")
+    .select("id, name, unit:material_units(symbol)")
+    .eq("organization_id", orgId)
+    .eq("active", true)
+    .order("name");
+  if (error) throw error;
+  if (!materials || materials.length === 0) return [];
+
+  const { data: latestPrices } = await supabase
+    .from("material_latest_prices")
+    .select("material_id, price")
+    .in(
+      "material_id",
+      materials.map((m) => m.id)
+    );
+  const priceByMaterial = new Map((latestPrices ?? []).map((p) => [p.material_id, Number(p.price)]));
+
+  return materials.map((m) => ({
+    id: m.id,
+    name: m.name,
+    unitSymbol: m.unit?.symbol ?? "",
+    lastPrice: priceByMaterial.get(m.id) ?? null,
+  }));
+}
+
 export async function getMaterialsWithStock(
   orgId: string,
   materialIds: string[]

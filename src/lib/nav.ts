@@ -22,9 +22,9 @@ export const mainNavItems: NavItem[] = [
   { title: "Agenda", href: "/app/agenda", icon: CalendarDays },
   { title: "Trabajos", href: "/app/trabajos", icon: Wrench },
   { title: "Clientes", href: "/app/clientes", icon: Users },
-  { title: "Cotizaciones", href: "/app/cotizaciones", icon: FileText, comingSoon: true },
-  { title: "Materiales", href: "/app/materiales", icon: Boxes, comingSoon: true },
-  { title: "Proveedores", href: "/app/proveedores", icon: Truck, comingSoon: true },
+  { title: "Cotizaciones", href: "/app/cotizaciones", icon: FileText },
+  { title: "Materiales", href: "/app/materiales", icon: Boxes },
+  { title: "Proveedores", href: "/app/proveedores", icon: Truck },
 ];
 
 export const footerNavItems: NavItem[] = [
