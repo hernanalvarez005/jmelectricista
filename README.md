@@ -145,6 +145,15 @@ Las migraciones versionadas viven en `supabase/migrations/`. Resumen:
   anterior, con row lock) para que reenviar el mismo formulario no descuente
   stock dos veces.
 
+**Fase 2.1**
+
+- `..._job_material_status_view.sql`: vista `job_material_status`, única
+  fórmula de "cuánto falta" de un material en un trabajo (ver sección
+  siguiente). Corrige un bug de Fase 2 donde el faltante se calculaba como
+  `estimated_quantity - stock` e ignoraba el consumo ya registrado en ese
+  trabajo (cuanto más se consumía correctamente, más alto parecía el
+  faltante).
+
 Reglas de acceso por rol (mismo patrón en toda la app):
 
 - **viewer**: solo lectura de los datos de su organización.
@@ -166,12 +175,50 @@ con triggers `BEFORE INSERT/UPDATE`, no solo con RLS.
   `adjustment_out` restan).
 - Los precios de proveedor se guardan como historial completo, nunca se
   sobrescribe un precio viejo; el "último precio" se deriva por fecha.
-- El "faltante" de un trabajo (`necesario - disponible`) nunca es negativo.
 - Reserva de stock: **fuera de alcance de esta fase** — el stock disponible
   usado en los cálculos es el stock físico actual, sin reservar cantidades
   para trabajos futuros. Queda documentado como decisión técnica para no
   bloquear la fase actual; una futura columna `reserved_quantity` o una tabla
   de reservas puede agregarse sin romper lo existente.
+
+### Fuentes de verdad y fórmulas de "cuánto falta" (Fase 2.1)
+
+Todas las pantallas (ficha del trabajo, dashboard, solicitud de precios)
+leen estos valores de la vista `public.job_material_status`
+(`security_invoker`, respeta RLS) — nunca se reimplementa la fórmula en el
+frontend. El espejo en TypeScript, solo para tests unitarios y cálculos
+puramente de cliente, vive en
+[`src/lib/materials/requirement.ts`](src/lib/materials/requirement.ts).
+
+| Campo | Fuente | Definición |
+| --- | --- | --- |
+| `estimated_quantity` | `job_materials.estimated_quantity` | Cuánto se estimó que este trabajo necesita en total. |
+| `consumed_quantity` | `job_materials.actual_quantity` | Cuánto se consumió realmente en este trabajo. Es un cache sincronizado transaccionalmente por `register_job_material_consumption` (única función que lo escribe) — nunca una segunda fuente de verdad independiente. |
+| `remaining_quantity` | calculado | `max(estimated_quantity - consumed_quantity, 0)`: cuánto falta ejecutar de la estimación original. |
+| `current_stock` | `material_stock_balances` | Stock físico global del material (todos los movimientos, no solo los de este trabajo). |
+| `missing_quantity` | calculado | `max(remaining_quantity - current_stock, 0)`: cuánto hay que conseguir para cubrir lo pendiente. |
+| `variance_quantity` | calculado | `consumed_quantity - estimated_quantity`: desvío sobre lo estimado (positivo = sobreconsumo; no se trata como error). |
+
+`missing_quantity` **nunca** se calcula como `estimated_quantity - stock`:
+eso ignora el material que el trabajo ya consumió y hace que el faltante
+parezca crecer cuanto más se ejecuta correctamente la obra (bug original:
+200 estimados, 150 de stock, se consumen 130 → el stock físico queda en 20 y
+el cálculo viejo mostraba "faltan 180" en lugar de "faltan 50").
+
+**Semántica de `return`**: `register_job_material_consumption` guarda el
+consumo como un valor absoluto por trabajo+material. Si el usuario corrige
+ese valor hacia abajo (por ejemplo, registró 80 y corrige a 60), la función
+genera un movimiento `return` por el delta (20) — el material vuelve al
+stock físico y `actual_quantity` (consumo neto) queda en el nuevo valor. No
+existe una devolución "suelta": siempre es `consumption - return` neteado
+por la misma función, nunca dos fuentes que puedan divergir.
+
+**Política de stock negativo**: el sistema permite registrar consumo por
+encima del stock físico disponible; no hay bloqueo ni advertencia a nivel de
+base de datos (`stock_movements` solo exige `quantity > 0`, no valida el
+balance resultante). El stock físico global puede quedar negativo. Esto es
+una decisión deliberada de esta fase (no se cambia sin una revisión aparte);
+queda cubierto por un test en `tests/db/stock-and-missing.test.ts`.
 
 ## Cotizaciones y PDF
 
@@ -193,6 +240,32 @@ con triggers `BEFORE INSERT/UPDATE`, no solo con RLS.
 - Aceptar una cotización **no** cambia el estado del trabajo automáticamente:
   la UI pregunta explícitamente si querés actualizarlo y a qué estado.
 
+## Tests
+
+```
+tests/
+  unit/     # Puros, sin red (calculateMaterialRequirement). npm run test
+  db/       # Contra Postgres/Supabase local real: stock, faltante, idempotencia,
+            # cotizaciones (numeración, totales, máquina de estados). npm run test:db
+  rls/      # Contra Supabase local real: anon denegado, aislamiento entre
+            # organizaciones, Storage. npm run test:rls
+  helpers/  # Clientes de Supabase (admin/anon/usuario) y fixtures compartidas.
+```
+
+```bash
+npx supabase start      # o `npx supabase db reset` si ya estaba corriendo
+npm run test            # unitarios (rápidos, no requieren Supabase)
+npm run test:db         # DB — requiere Supabase local corriendo
+npm run test:rls        # RLS — requiere Supabase local corriendo
+npm run test:all        # los tres, en orden
+```
+
+Los tests de `db/` y `rls/` nunca mockean Postgres: crean usuarios y
+organizaciones reales vía `supabase.auth.admin` + `bootstrap_organization`,
+y verifican el comportamiento contra la base real (incluye llamadas RPC
+concurrentes para probar la numeración atómica de cotizaciones y la
+idempotencia del registro de consumo).
+
 ## Ejecución local
 
 ```bash
@@ -207,6 +280,7 @@ Abrí [http://localhost:3000](http://localhost:3000).
 npm run typecheck
 npm run lint
 npm run build
+npm run test:all   # requiere Supabase local corriendo (npx supabase start)
 ```
 
 ## Deploy en Vercel
@@ -229,6 +303,13 @@ precios por WhatsApp, registro de consumo real), cotizaciones (numeración,
 importar materiales del trabajo, mano de obra/servicios, descuento, margen
 interno, estados, PDF con Storage privado) y las alertas de materiales
 faltantes/cotizaciones en el dashboard.
+
+**Fase 2.1**: corrección del cálculo de "faltante" de materiales para que
+considere el consumo ya registrado en el trabajo (no solo `estimated -
+stock`), vista `job_material_status` como fuente única de esa fórmula,
+suite de tests versionada (`tests/unit`, `tests/db`, `tests/rls`) contra
+Supabase local real, y verificación manual en mobile (375px) de proveedores,
+ficha de proveedor, ficha de material y el editor de cotizaciones.
 
 Fuera de alcance (a propósito, ver secciones de arriba y el prompt de Fase 2):
 cobros/facturación fiscal, caja, cuentas corrientes de proveedores, reserva de
