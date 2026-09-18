@@ -42,6 +42,9 @@ export function JobSessionDialog({
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  // UUID por intento de alta: reenviar el mismo formulario (doble click, retry)
+  // reutiliza el id y el backend no crea una segunda sesión.
+  const [clientRequestId, setClientRequestId] = useState("");
   const router = useRouter();
 
   const {
@@ -66,13 +69,15 @@ export function JobSessionDialog({
     if (next) {
       reset();
       setServerError(null);
+      setClientRequestId(crypto.randomUUID());
     }
   }
 
   function onSubmit(values: JobSessionInput) {
+    if (isPending) return;
     setServerError(null);
     startTransition(async () => {
-      const result = await createJobSessionAction(jobId, values);
+      const result = await createJobSessionAction(jobId, values, clientRequestId);
       if ("error" in result) {
         setServerError(result.error);
         return;

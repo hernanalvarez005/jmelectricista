@@ -101,6 +101,7 @@ export function JobSessionsList({
                     plannedEndAt={session.planned_end_at}
                     actualStartAt={session.actual_start_at}
                     actualEndAt={session.actual_end_at}
+                    timezone={timezone}
                     mode="complete"
                     trigger={
                       <Button size="sm" variant="outline" disabled={isPending}>
@@ -121,6 +122,7 @@ export function JobSessionsList({
                   plannedEndAt={session.planned_end_at}
                   actualStartAt={session.actual_start_at}
                   actualEndAt={session.actual_end_at}
+                  timezone={timezone}
                   mode="edit"
                   trigger={
                     <Button size="sm" variant="outline" disabled={isPending}>

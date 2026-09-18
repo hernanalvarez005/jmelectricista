@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { zonedParts } from "@/lib/scheduling/timezone";
 import { actualTimeSchema, type ActualTimeInput } from "@/lib/validations/session";
 
 type Mode = "complete" | "edit";
@@ -29,6 +30,7 @@ export function CompleteSessionDialog({
   plannedEndAt,
   actualStartAt,
   actualEndAt,
+  timezone,
   mode,
   trigger,
 }: {
@@ -38,6 +40,7 @@ export function CompleteSessionDialog({
   plannedEndAt: string;
   actualStartAt: string | null;
   actualEndAt: string | null;
+  timezone: string;
   mode: Mode;
   trigger: React.ReactNode;
 }) {
@@ -46,16 +49,9 @@ export function CompleteSessionDialog({
   const [serverError, setServerError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Invierte combineDateAndTime (que arma el timestamp interpretando
-  // date+time como hora LOCAL del proceso, igual que ya hace la creación de
-  // sesiones planificadas): hay que leer con los getters locales, no con
-  // toISOString (que da UTC y desalinearía el round-trip).
-  function toLocalParts(iso: string) {
-    const d = new Date(iso);
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    return { date, time };
-  }
+  // Fecha/hora en la zona horaria de la organización (mismo criterio con el
+  // que el servidor guarda: zonedDateTimeToIso), no la del navegador.
+  const toLocalParts = (iso: string) => zonedParts(iso, timezone);
 
   const initialActual = actualStartAt && actualEndAt
     ? { date: toLocalParts(actualStartAt).date, startTime: toLocalParts(actualStartAt).time, endTime: toLocalParts(actualEndAt).time }

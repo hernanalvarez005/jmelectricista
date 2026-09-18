@@ -314,6 +314,25 @@ app **no** calcula "costo real", "ganancia" ni "margen real"; solo muestra el
 costo interno *estimado* de la cotización ("Margen estimado antes de otros
 costos"), cantidades estimadas vs reales, horas y cobros.
 
+## Fechas y sesiones (Fase 3.1)
+
+- **Date-only**: las columnas `date` (`payment_date`, `target_date`, `issue_date`,
+  `valid_until`) son fechas de calendario, no instantes. Se muestran con
+  `formatDateOnly("YYYY-MM-DD")`, que formatea el texto sin construir un `Date`
+  (evita el corrimiento de un día en UTC-3). `formatDate`/`formatDateTime`/`formatTime`
+  son solo para `timestamptz` y siempre con la zona de la organización.
+- **Horarios**: `zonedDateTimeToIso` / `zonedParts` (`src/lib/scheduling/timezone.ts`)
+  convierten fecha+hora de pared en la zona de la organización a/desde UTC; nunca
+  se usa la zona del proceso (Vercel corre en UTC). "Hoy" y "este mes" salen de
+  `todayKeyInTZ(timezone)`. `supplier_material_prices.recorded_at` (timestamptz)
+  se guarda al mediodía de la zona de la organización.
+- **Sesiones idempotentes**: `job_sessions.client_request_id` (único por
+  organización cuando no es null) + RPC `create_job_session`. El formulario genera
+  un UUID al abrirse; reenvíos/doble click/concurrencia devuelven la misma sesión.
+  No hay unique por (trabajo, horario): dos sesiones iguales con requests distintos
+  son legítimas. No existe INSERT directo sobre `job_sessions`.
+- `npm run test:tz` corre los tests unitarios en UTC y en Buenos Aires.
+
 ## Tests
 
 ```

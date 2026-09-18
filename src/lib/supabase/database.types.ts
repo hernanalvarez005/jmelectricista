@@ -358,6 +358,7 @@ export type Database = {
           actual_end_at: string | null
           actual_start_at: string | null
           assigned_member_id: string | null
+          client_request_id: string | null
           created_at: string
           id: string
           job_id: string
@@ -372,6 +373,7 @@ export type Database = {
           actual_end_at?: string | null
           actual_start_at?: string | null
           assigned_member_id?: string | null
+          client_request_id?: string | null
           created_at?: string
           id?: string
           job_id: string
@@ -386,6 +388,7 @@ export type Database = {
           actual_end_at?: string | null
           actual_start_at?: string | null
           assigned_member_id?: string | null
+          client_request_id?: string | null
           created_at?: string
           id?: string
           job_id?: string
@@ -1514,6 +1517,17 @@ export type Database = {
     }
     Functions: {
       bootstrap_organization: { Args: { org_name: string }; Returns: string }
+      create_job_session: {
+        Args: {
+          p_assigned_member_id?: string
+          p_client_request_id: string
+          p_job_id: string
+          p_notes?: string
+          p_planned_end_at: string
+          p_planned_start_at: string
+        }
+        Returns: string
+      }
       create_quote: {
         Args: { p_client_id: string; p_job_id: string }
         Returns: string

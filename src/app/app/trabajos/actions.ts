@@ -5,15 +5,13 @@ import { revalidatePath } from "next/cache";
 import { canOperate, requireCurrentOrg } from "@/lib/data/current-org";
 import { createClient as createSupabaseClient } from "@/lib/supabase/server";
 import { toMinutes } from "@/lib/format/duration";
+import { zonedDateTimeToIso } from "@/lib/scheduling/timezone";
 import { jobSchema, type JobInput } from "@/lib/validations/job";
 import { actualTimeSchema, jobSessionSchema, type ActualTimeInput, type JobSessionInput } from "@/lib/validations/session";
 
 type ActionResult = { error: string } | { id: string };
 type SimpleResult = { error: string } | { ok: true };
 
-function combineDateAndTime(date: string, time: string): string {
-  return new Date(`${date}T${time}:00`).toISOString();
-}
 
 export async function createJobAction(input: JobInput): Promise<ActionResult> {
   const parsed = jobSchema.safeParse(input);
@@ -111,34 +109,32 @@ export async function updateJobStatusAction(
 
 export async function createJobSessionAction(
   jobId: string,
-  input: JobSessionInput
+  input: JobSessionInput,
+  clientRequestId: string
 ): Promise<ActionResult> {
   const parsed = jobSessionSchema.safeParse(input);
   if (!parsed.success) return { error: "Revisá los datos de la sesión." };
+  if (!clientRequestId) return { error: "Solicitud inválida, volvé a intentar." };
 
   const { organization, role } = await requireCurrentOrg();
   if (!canOperate(role)) return { error: "No tenés permiso para programar sesiones." };
 
   const supabase = await createSupabaseClient();
-  const { data, error } = await supabase
-    .from("job_sessions")
-    .insert({
-      organization_id: organization.id,
-      job_id: jobId,
-      assigned_member_id: parsed.data.assignedMemberId || null,
-      planned_start_at: combineDateAndTime(parsed.data.date, parsed.data.startTime),
-      planned_end_at: combineDateAndTime(parsed.data.date, parsed.data.endTime),
-      notes: parsed.data.notes || null,
-    })
-    .select("id")
-    .single();
+  const { data, error } = await supabase.rpc("create_job_session", {
+    p_job_id: jobId,
+    p_planned_start_at: zonedDateTimeToIso(parsed.data.date, parsed.data.startTime, organization.timezone),
+    p_planned_end_at: zonedDateTimeToIso(parsed.data.date, parsed.data.endTime, organization.timezone),
+    p_client_request_id: clientRequestId,
+    p_assigned_member_id: parsed.data.assignedMemberId || undefined,
+    p_notes: parsed.data.notes || undefined,
+  });
 
   if (error || !data) return { error: "No se pudo programar la sesión." };
 
   revalidatePath(`/app/trabajos/${jobId}`);
   revalidatePath("/app/agenda");
   revalidatePath("/app");
-  return { id: data.id };
+  return { id: data };
 }
 
 export async function updateJobSessionStatusAction(
@@ -155,8 +151,8 @@ export async function updateJobSessionStatusAction(
   if (status === "completed" && actualTime) {
     const parsed = actualTimeSchema.safeParse(actualTime);
     if (!parsed.success) return { error: "Revisá el tiempo real ingresado." };
-    actualStartAt = combineDateAndTime(parsed.data.date, parsed.data.startTime);
-    actualEndAt = combineDateAndTime(parsed.data.date, parsed.data.endTime);
+    actualStartAt = zonedDateTimeToIso(parsed.data.date, parsed.data.startTime, organization.timezone);
+    actualEndAt = zonedDateTimeToIso(parsed.data.date, parsed.data.endTime, organization.timezone);
   }
 
   const supabase = await createSupabaseClient();
@@ -190,8 +186,8 @@ export async function updateSessionActualTimeAction(
   const { error } = await supabase
     .from("job_sessions")
     .update({
-      actual_start_at: combineDateAndTime(parsed.data.date, parsed.data.startTime),
-      actual_end_at: combineDateAndTime(parsed.data.date, parsed.data.endTime),
+      actual_start_at: zonedDateTimeToIso(parsed.data.date, parsed.data.startTime, organization.timezone),
+      actual_end_at: zonedDateTimeToIso(parsed.data.date, parsed.data.endTime, organization.timezone),
     })
     .eq("id", sessionId)
     .eq("organization_id", organization.id);
