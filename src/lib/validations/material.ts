@@ -24,15 +24,23 @@ export const materialSchema = z.object({
 });
 export type MaterialInput = z.infer<typeof materialSchema>;
 
-export const stockAdjustmentSchema = z.object({
-  direction: z.enum(["in", "out"]),
-  quantity: z.string().min(1, "Ingresá una cantidad"),
-  reason: z.string().trim().max(500).optional().or(z.literal("")),
-});
+export const stockAdjustmentSchema = z
+  .object({
+    direction: z.enum(["in", "out"]),
+    quantity: z.string().min(1, "Ingresá una cantidad"),
+    // Un aumento de stock necesita costo: si no, el inventario quedaría sin valor.
+    unitCost: z.string().optional(),
+    reason: z.string().trim().max(500).optional().or(z.literal("")),
+  })
+  .refine((v) => v.direction === "out" || (v.unitCost ?? "").trim() !== "", {
+    path: ["unitCost"],
+    message: "Ingresá el costo unitario del ingreso",
+  });
 export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 
 export const stockInitialSchema = z.object({
   quantity: z.string().min(1, "Ingresá una cantidad"),
+  unitCost: z.string().min(1, "Ingresá el costo unitario"),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
 });
 export type StockInitialInput = z.infer<typeof stockInitialSchema>;

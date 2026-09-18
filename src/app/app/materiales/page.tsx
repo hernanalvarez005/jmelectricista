@@ -7,7 +7,7 @@ import { listMaterialCategories, listMaterialUnits, listMaterials } from "@/lib/
 export default async function MaterialesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; active?: string; lowStock?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; active?: string; lowStock?: string; valuation?: string }>;
 }) {
   const params = await searchParams;
   const { organization } = await requireCurrentOrg();
@@ -18,6 +18,7 @@ export default async function MaterialesPage({
       categoryId: params.category,
       activeOnly: params.active === "1",
       lowStockOnly: params.lowStock === "1",
+      needsValuationOnly: params.valuation === "missing",
     }),
     listMaterialCategories(organization.id),
     listMaterialUnits(organization.id, { activeOnly: true }),

@@ -78,6 +78,16 @@ export function MaterialsFilterBar({
           Stock bajo
         </Label>
       </div>
+      <div className="flex items-center gap-2">
+        <Switch
+          id="needsValuationOnly"
+          checked={searchParams.get("valuation") === "missing"}
+          onCheckedChange={(checked) => setParam("valuation", checked ? "missing" : null)}
+        />
+        <Label htmlFor="needsValuationOnly" className="font-normal">
+          Sin valoración
+        </Label>
+      </div>
     </div>
   );
 }

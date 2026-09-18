@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatMoney } from "@/lib/format/money";
 import { formatQuantity } from "@/lib/format/quantity";
 import type { JobMaterialItem } from "@/lib/data/job-materials";
 
@@ -34,7 +35,13 @@ function VarianceNote({ variance, unitSymbol }: { variance: number; unitSymbol: 
   );
 }
 
-export function JobMaterialsList({ jobId, materials }: { jobId: string; materials: JobMaterialItem[] }) {
+function RealCost({ m, currency }: { m: JobMaterialItem; currency: string }) {
+  if (m.realCost === null) return <span className="text-muted-foreground">-</span>;
+  if (!m.realCostComplete) return <span className="text-warning">Sin valoración</span>;
+  return <>{formatMoney(m.realCost, currency)}</>;
+}
+
+export function JobMaterialsList({ jobId, materials, currency }: { jobId: string; materials: JobMaterialItem[]; currency: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [consumptionDrafts, setConsumptionDrafts] = useState<Record<string, string>>({});
@@ -112,6 +119,9 @@ export function JobMaterialsList({ jobId, materials }: { jobId: string; material
                 {formatQuantity(m.availableStock, m.unitSymbol)}
               </p>
               <VarianceNote variance={m.varianceQuantity} unitSymbol={m.unitSymbol} />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Costo real: <RealCost m={m} currency={currency} />
+              </p>
 
               <div className="mt-3 flex items-center gap-2">
                 <Input
@@ -145,6 +155,7 @@ export function JobMaterialsList({ jobId, materials }: { jobId: string; material
               <TableHead className="text-right">Pendiente</TableHead>
               <TableHead className="text-right">Stock</TableHead>
               <TableHead className="text-right">Falta</TableHead>
+              <TableHead className="text-right">Costo real</TableHead>
               <TableHead className="text-right">Consumo real</TableHead>
               <TableHead className="w-9" />
             </TableRow>
@@ -162,6 +173,9 @@ export function JobMaterialsList({ jobId, materials }: { jobId: string; material
                 <TableCell className="text-right">{formatQuantity(m.availableStock, m.unitSymbol)}</TableCell>
                 <TableCell className={`text-right ${m.missing > 0 ? "font-medium text-warning" : ""}`}>
                   {m.missing > 0 ? formatQuantity(m.missing, m.unitSymbol) : "—"}
+                </TableCell>
+                <TableCell className="text-right">
+                  <RealCost m={m} currency={currency} />
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">

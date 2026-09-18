@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Receipt,
   Settings,
+  ShoppingCart,
   Truck,
   Users,
   Wrench,
@@ -26,6 +27,7 @@ export const mainNavItems: NavItem[] = [
   { title: "Cotizaciones", href: "/app/cotizaciones", icon: FileText },
   { title: "Materiales", href: "/app/materiales", icon: Boxes },
   { title: "Proveedores", href: "/app/proveedores", icon: Truck },
+  { title: "Compras", href: "/app/compras", icon: ShoppingCart },
   { title: "Cobros", href: "/app/cobros", icon: Receipt },
 ];
 

@@ -1,3 +1,4 @@
+import { ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -13,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { canAdminister, requireCurrentOrg } from "@/lib/data/current-org";
+import { canAdminister, canOperate, requireCurrentOrg } from "@/lib/data/current-org";
+import { getJobCostStatus } from "@/lib/data/job-costs";
 import { getJobDetail } from "@/lib/data/jobs";
 import { getJobFormOptions } from "@/lib/data/job-form-options";
 import { getJobMaterials } from "@/lib/data/job-materials";
@@ -43,7 +45,7 @@ export default async function JobDetailPage({
   const { id } = await params;
   const { organization, role } = await requireCurrentOrg();
 
-  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts] =
+  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts, costStatus] =
     await Promise.all([
       getJobDetail(organization.id, id),
       getJobFormOptions(organization.id),
@@ -56,6 +58,7 @@ export default async function JobDetailPage({
       getJobPayments(organization.id, id),
       listPaymentMethods(organization.id, { activeOnly: true }),
       listPaymentAccounts(organization.id, { activeOnly: true }),
+      getJobCostStatus(organization.id, id),
     ]);
 
   if (!detail) notFound();
@@ -69,6 +72,7 @@ export default async function JobDetailPage({
   const materialsWithOverconsumption = jobMaterials.filter((m) => m.varianceQuantity > 0).length;
   const latestQuote = quotes[0];
   const materialsPending = jobMaterials.filter((m) => m.remainingQuantity > 0).length;
+  const hasMaterialConsumption = jobMaterials.some((m) => m.realCost !== null);
 
   // Advertencias NO bloqueantes: un trabajo cerrado (status.is_closed, no por
   // nombre) con información pendiente no debe mostrarse como análisis completo.
@@ -82,6 +86,9 @@ export default async function JobDetailPage({
     if (timeStatus.completedSessionsWithoutActualTime > 0) {
       const n = timeStatus.completedSessionsWithoutActualTime;
       closeWarnings.push(`${n} sesión${n === 1 ? "" : "es"} sin tiempo real registrado.`);
+    }
+    if (!costStatus.materialCostComplete) {
+      closeWarnings.push("Costo real de materiales incompleto: hay consumos sin valoración histórica.");
     }
     if (materialsPending > 0) {
       closeWarnings.push(`${materialsPending} material${materialsPending === 1 ? "" : "es"} con cantidad pendiente de consumir.`);
@@ -112,14 +119,16 @@ export default async function JobDetailPage({
       </div>
 
       <Tabs defaultValue="resumen">
-        <TabsList>
-          <TabsTrigger value="resumen">Resumen</TabsTrigger>
-          <TabsTrigger value="agenda">Agenda</TabsTrigger>
-          <TabsTrigger value="materiales">Materiales</TabsTrigger>
-          <TabsTrigger value="cotizacion">Cotización</TabsTrigger>
-          <TabsTrigger value="cobros">Cobros</TabsTrigger>
-          <TabsTrigger value="actividad">Actividad</TabsTrigger>
-        </TabsList>
+        <div className="max-w-full overflow-x-auto">
+          <TabsList>
+            <TabsTrigger value="resumen">Resumen</TabsTrigger>
+            <TabsTrigger value="agenda">Agenda</TabsTrigger>
+            <TabsTrigger value="materiales">Materiales</TabsTrigger>
+            <TabsTrigger value="cotizacion">Cotización</TabsTrigger>
+            <TabsTrigger value="cobros">Cobros</TabsTrigger>
+            <TabsTrigger value="actividad">Actividad</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="resumen" className="mt-4 flex flex-col gap-6">
           {closeWarnings.length > 0 && (
@@ -255,6 +264,61 @@ export default async function JobDetailPage({
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Costos de materiales</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 text-sm sm:max-w-md">
+              <Row
+                label="Costo estimado"
+                value={
+                  costStatus.estimatedMaterialCost === null
+                    ? "Sin cotización aceptada"
+                    : formatMoney(costStatus.estimatedMaterialCost, organization.currency)
+                }
+              />
+              <Row
+                label="Costo real"
+                value={
+                  !hasMaterialConsumption ? (
+                    <span className="text-muted-foreground">Sin consumos todavía</span>
+                  ) : costStatus.materialCostComplete ? (
+                    formatMoney(costStatus.actualMaterialCost, organization.currency)
+                  ) : (
+                    <span className="text-warning">Costo real incompleto</span>
+                  )
+                }
+              />
+              <Row
+                label="Desvío"
+                value={
+                  costStatus.materialCostVariance === null || !hasMaterialConsumption ? (
+                    "-"
+                  ) : (
+                    <span className={costStatus.materialCostVariance > 0 ? "font-medium text-warning" : "text-success"}>
+                      {costStatus.materialCostVariance > 0 ? "+" : ""}
+                      {formatMoney(costStatus.materialCostVariance, organization.currency)}
+                      {materialsPending > 0 ? " (parcial)" : ""}
+                    </span>
+                  )
+                }
+              />
+              {!costStatus.materialCostComplete && (
+                <p className="text-xs text-warning">
+                  Sin valoración histórica completa: hay consumos de stock anterior a la valoración. No se muestra un total parcial como si fuera completo.
+                </p>
+              )}
+              {hasMaterialConsumption && materialsPending > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Desvío parcial: todavía hay materiales pendientes de consumir, así que el real se compara contra el estimado completo.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Solo materiales, con el costo al que se consumió cada uno. No incluye mano de obra ni otros costos.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="agenda" className="mt-4">
@@ -282,7 +346,14 @@ export default async function JobDetailPage({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>Materiales</CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {materialsWithMissing > 0 && canOperate(role) && (
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/app/compras/nueva?job=${job.id}`}>
+                      <ShoppingCart /> Crear compra
+                    </Link>
+                  </Button>
+                )}
                 <RequestPricesDialog
                   materials={jobMaterials}
                   suppliers={suppliers.filter((s) => s.active)}
@@ -300,7 +371,7 @@ export default async function JobDetailPage({
               </div>
             </CardHeader>
             <CardContent>
-              <JobMaterialsList jobId={job.id} materials={jobMaterials} />
+              <JobMaterialsList jobId={job.id} materials={jobMaterials} currency={organization.currency} />
             </CardContent>
           </Card>
         </TabsContent>

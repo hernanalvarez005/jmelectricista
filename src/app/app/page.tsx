@@ -1,4 +1,4 @@
-import { AlertTriangle, Boxes, CalendarClock, CalendarDays, Clock, FileText, ListTodo, Wallet, Wrench } from "lucide-react";
+import { AlertTriangle, Boxes, CalendarClock, CalendarDays, Clock, FileText, ListTodo, ShoppingCart, Wallet, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { WeeklyLoadBars } from "@/components/weekly-load-bars";
@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { getDashboardData } from "@/lib/data/dashboard";
+import { countClosedJobsWithIncompleteMaterialCost } from "@/lib/data/job-costs";
+import { getPurchasesDashboardStats } from "@/lib/data/purchases";
 import { getJobsWithMissingMaterials } from "@/lib/data/dashboard-materials";
 import { getJobsWithOutstandingBalance, getPaymentsDashboardStats } from "@/lib/data/payments";
 import { getQuoteDashboardStats } from "@/lib/data/quotes";
@@ -16,12 +18,14 @@ import { formatQuantity } from "@/lib/format/quantity";
 
 export default async function DashboardPage() {
   const { organization } = await requireCurrentOrg();
-  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance] = await Promise.all([
+  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance, purchasesStats, closedIncompleteCost] = await Promise.all([
     getDashboardData(organization.id, organization.timezone),
     getJobsWithMissingMaterials(organization.id),
     getQuoteDashboardStats(organization.id, organization.timezone),
     getPaymentsDashboardStats(organization.id, organization.timezone),
     getJobsWithOutstandingBalance(organization.id),
+    getPurchasesDashboardStats(organization.id, organization.timezone),
+    countClosedJobsWithIncompleteMaterialCost(organization.id),
   ]);
 
   const stats = [
@@ -62,6 +66,23 @@ export default async function DashboardPage() {
       value: paymentsStats.closedJobsWithBalanceCount,
       icon: AlertTriangle,
       alert: paymentsStats.closedJobsWithBalanceCount > 0 ? ("destructive" as const) : undefined,
+    },
+    {
+      label: "Compras del mes",
+      value: formatMoney(purchasesStats.purchasedThisMonth, organization.currency),
+      icon: ShoppingCart,
+    },
+    {
+      label: "Materiales sin valoración",
+      value: purchasesStats.materialsWithoutValuation,
+      icon: Boxes,
+      alert: purchasesStats.materialsWithoutValuation > 0 ? ("warning" as const) : undefined,
+    },
+    {
+      label: "Finalizados con costo incompleto",
+      value: closedIncompleteCost,
+      icon: AlertTriangle,
+      alert: closedIncompleteCost > 0 ? ("warning" as const) : undefined,
     },
   ];
 

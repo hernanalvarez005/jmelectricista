@@ -46,6 +46,10 @@ export type MaterialListItem = {
   lastPrice: number | null;
   lastPriceSupplierName: string | null;
   lastPriceDate: string | null;
+  /** Costo promedio ponderado del inventario (null si no está valorizado). No es el precio consultado a proveedores. */
+  averageCost: number | null;
+  inventoryValue: number | null;
+  needsInitialization: boolean;
   /** Fila cruda, para no tener que refetchear al abrir el formulario de edición. */
   raw: Tables<"materials">;
 };
@@ -55,6 +59,7 @@ export type MaterialFilters = {
   categoryId?: string;
   activeOnly?: boolean;
   lowStockOnly?: boolean;
+  needsValuationOnly?: boolean;
 };
 
 export async function listMaterials(
@@ -80,7 +85,11 @@ export async function listMaterials(
 
   const materialIds = materials.map((m) => m.id);
 
-  const [{ data: balances, error: balancesError }, { data: latestPrices, error: pricesError }] =
+  const [
+    { data: balances, error: balancesError },
+    { data: latestPrices, error: pricesError },
+    { data: valuations, error: valuationsError },
+  ] =
     await Promise.all([
       supabase
         .from("material_stock_balances")
@@ -90,10 +99,16 @@ export async function listMaterials(
         .from("material_latest_prices")
         .select("material_id, price, recorded_at, supplier:suppliers(name)")
         .in("material_id", materialIds),
+      supabase
+        .from("material_valuation")
+        .select("material_id, average_cost, inventory_value, needs_initialization")
+        .in("material_id", materialIds),
     ]);
 
   if (balancesError) throw balancesError;
   if (pricesError) throw pricesError;
+  if (valuationsError) throw valuationsError;
+  const valuationByMaterial = new Map((valuations ?? []).map((v) => [v.material_id, v]));
 
   const stockByMaterial = new Map((balances ?? []).map((b) => [b.material_id, Number(b.current_stock)]));
   const priceByMaterial = new Map((latestPrices ?? []).map((p) => [p.material_id, p]));
@@ -102,6 +117,7 @@ export async function listMaterials(
     const currentStock = stockByMaterial.get(m.id) ?? 0;
     const minimumStock = Number(m.minimum_stock);
     const price = priceByMaterial.get(m.id);
+    const valuation = valuationByMaterial.get(m.id);
     return {
       id: m.id,
       name: m.name,
@@ -115,11 +131,14 @@ export async function listMaterials(
       lastPrice: price ? Number(price.price) : null,
       lastPriceSupplierName: price?.supplier?.name ?? null,
       lastPriceDate: price?.recorded_at ?? null,
+      averageCost: valuation?.average_cost != null ? Number(valuation.average_cost) : null,
+      inventoryValue: valuation?.inventory_value != null ? Number(valuation.inventory_value) : null,
+      needsInitialization: Boolean(valuation?.needs_initialization),
       raw: m,
     };
   });
 
-  return filters.lowStockOnly ? items.filter((i) => i.lowStock) : items;
+  return items.filter((i) => (!filters.lowStockOnly || i.lowStock) && (!filters.needsValuationOnly || i.needsInitialization));
 }
 
 export type MaterialDetail = {
@@ -127,7 +146,15 @@ export type MaterialDetail = {
   categoryName: string | null;
   unit: Tables<"material_units">;
   currentStock: number;
-  recentMovements: Tables<"stock_movements">[];
+  recentMovements: (Tables<"stock_movements"> & { purchaseNumber: string | null; jobTitle: string | null })[];
+  valuation: {
+    initialized: boolean;
+    needsInitialization: boolean;
+    averageCost: number | null;
+    inventoryValue: number | null;
+  };
+  lastPurchase: { unitCost: number; purchaseDate: string; purchaseNumber: string; supplierName: string | null } | null;
+  openingEvent: { unitCost: number; quantity: number; createdAt: string; notes: string | null } | null;
   priceHistory: (Tables<"supplier_material_prices"> & { supplierName: string })[];
 };
 
@@ -144,7 +171,14 @@ export async function getMaterialDetail(orgId: string, materialId: string): Prom
   if (error) throw error;
   if (!material) return null;
 
-  const [{ data: balance }, { data: movements, error: movementsError }, { data: prices, error: pricesError }] =
+  const [
+    { data: balance },
+    { data: movements, error: movementsError },
+    { data: prices, error: pricesError },
+    { data: valuation },
+    { data: lastPurchase },
+    { data: openingEvent },
+  ] =
     await Promise.all([
       supabase
         .from("material_stock_balances")
@@ -153,7 +187,7 @@ export async function getMaterialDetail(orgId: string, materialId: string): Prom
         .maybeSingle(),
       supabase
         .from("stock_movements")
-        .select("*")
+        .select("*, purchase:purchases(purchase_number), job:jobs(title)")
         .eq("material_id", materialId)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -162,6 +196,23 @@ export async function getMaterialDetail(orgId: string, materialId: string): Prom
         .select("*, supplier:suppliers(name)")
         .eq("material_id", materialId)
         .order("recorded_at", { ascending: false }),
+      supabase
+        .from("material_valuation")
+        .select("valuation_initialized, needs_initialization, average_cost, inventory_value")
+        .eq("material_id", materialId)
+        .maybeSingle(),
+      supabase
+        .from("material_latest_purchases")
+        .select("unit_cost, purchase_date, purchase_number, supplier:suppliers(name)")
+        .eq("material_id", materialId)
+        .maybeSingle(),
+      supabase
+        .from("material_valuation_events")
+        .select("unit_cost, quantity, created_at, notes")
+        .eq("material_id", materialId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
   if (movementsError) throw movementsError;
@@ -172,7 +223,33 @@ export async function getMaterialDetail(orgId: string, materialId: string): Prom
     categoryName: material.category?.name ?? null,
     unit: material.unit,
     currentStock: Number(balance?.current_stock ?? 0),
-    recentMovements: movements ?? [],
+    recentMovements: (movements ?? []).map(({ purchase, job, ...mv }) => ({
+      ...mv,
+      purchaseNumber: purchase?.purchase_number ?? null,
+      jobTitle: job?.title ?? null,
+    })),
+    valuation: {
+      initialized: Boolean(valuation?.valuation_initialized),
+      needsInitialization: Boolean(valuation?.needs_initialization),
+      averageCost: valuation?.average_cost != null ? Number(valuation.average_cost) : null,
+      inventoryValue: valuation?.inventory_value != null ? Number(valuation.inventory_value) : null,
+    },
+    lastPurchase: lastPurchase
+      ? {
+          unitCost: Number(lastPurchase.unit_cost),
+          purchaseDate: lastPurchase.purchase_date ?? "",
+          purchaseNumber: lastPurchase.purchase_number ?? "",
+          supplierName: lastPurchase.supplier?.name ?? null,
+        }
+      : null,
+    openingEvent: openingEvent
+      ? {
+          unitCost: Number(openingEvent.unit_cost),
+          quantity: Number(openingEvent.quantity),
+          createdAt: openingEvent.created_at,
+          notes: openingEvent.notes,
+        }
+      : null,
     priceHistory: (prices ?? []).map((p) => ({ ...p, supplierName: p.supplier?.name ?? "-" })),
   };
 }

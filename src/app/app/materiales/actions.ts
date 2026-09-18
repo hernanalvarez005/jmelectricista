@@ -2,8 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 
-import { canOperate, requireCurrentOrg } from "@/lib/data/current-org";
+import { canAdminister, canOperate, requireCurrentOrg } from "@/lib/data/current-org";
 import { parseDecimal } from "@/lib/format/quantity";
+import {
+  friendlyInventoryError,
+  initializeValuationSchema,
+  type InitializeValuationInput,
+} from "@/lib/validations/purchase";
 import { createClient as createSupabaseClient } from "@/lib/supabase/server";
 import {
   materialCategorySchema,
@@ -131,6 +136,8 @@ export async function registerInitialStockAction(
 
   const quantity = parseDecimal(parsed.data.quantity);
   if (quantity === null || quantity <= 0) return { error: "La cantidad debe ser mayor a 0." };
+  const unitCost = parseDecimal(parsed.data.unitCost);
+  if (unitCost === null || unitCost < 0) return { error: "El costo unitario no es válido." };
 
   const { organization, role } = await requireCurrentOrg();
   if (!canOperate(role)) return { error: "No tenés permiso para registrar stock." };
@@ -145,11 +152,12 @@ export async function registerInitialStockAction(
     material_id: materialId,
     movement_type: "in",
     quantity,
+    unit_cost: unitCost,
     notes: parsed.data.notes || "Stock inicial",
     created_by: user?.id ?? null,
   });
 
-  if (error) return { error: "No se pudo registrar el stock inicial." };
+  if (error) return { error: friendlyInventoryError(error.message, "No se pudo registrar el stock inicial.") };
   revalidatePath("/app/materiales");
   revalidatePath(`/app/materiales/${materialId}`);
   return { ok: true };
@@ -164,6 +172,12 @@ export async function adjustStockAction(
 
   const quantity = parseDecimal(parsed.data.quantity);
   if (quantity === null || quantity <= 0) return { error: "La cantidad debe ser mayor a 0." };
+  let unitCost: number | undefined;
+  if (parsed.data.direction === "in") {
+    const parsedCost = parseDecimal(parsed.data.unitCost ?? "");
+    if (parsedCost === null || parsedCost < 0) return { error: "El costo unitario no es válido." };
+    unitCost = parsedCost;
+  }
 
   const { organization, role } = await requireCurrentOrg();
   if (!canOperate(role)) return { error: "No tenés permiso para ajustar stock." };
@@ -178,11 +192,38 @@ export async function adjustStockAction(
     material_id: materialId,
     movement_type: parsed.data.direction === "in" ? "adjustment_in" : "adjustment_out",
     quantity,
+    unit_cost: unitCost,
     notes: parsed.data.reason || null,
     created_by: user?.id ?? null,
   });
 
-  if (error) return { error: "No se pudo registrar el ajuste." };
+  if (error) return { error: friendlyInventoryError(error.message, "No se pudo registrar el ajuste.") };
+  revalidatePath("/app/materiales");
+  revalidatePath(`/app/materiales/${materialId}`);
+  return { ok: true };
+}
+
+export async function initializeValuationAction(
+  materialId: string,
+  input: InitializeValuationInput
+): Promise<SimpleResult> {
+  const parsed = initializeValuationSchema.safeParse(input);
+  if (!parsed.success) return { error: "Ingresá un costo unitario válido." };
+
+  const unitCost = parseDecimal(parsed.data.unitCost);
+  if (unitCost === null || unitCost < 0) return { error: "El costo unitario no es válido." };
+
+  const { role } = await requireCurrentOrg();
+  if (!canAdminister(role)) return { error: "Solo un administrador puede inicializar la valoración." };
+
+  const supabase = await createSupabaseClient();
+  const { error } = await supabase.rpc("initialize_material_valuation", {
+    p_material_id: materialId,
+    p_unit_cost: unitCost,
+    p_notes: parsed.data.notes || undefined,
+  });
+
+  if (error) return { error: friendlyInventoryError(error.message, "No se pudo inicializar la valoración.") };
   revalidatePath("/app/materiales");
   revalidatePath(`/app/materiales/${materialId}`);
   return { ok: true };

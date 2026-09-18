@@ -6,6 +6,8 @@ import { SupplierFormSheet } from "@/components/suppliers/supplier-form-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PurchasesTable } from "@/components/purchases/purchases-table";
+import { getSupplierPurchases } from "@/lib/data/purchases";
 import { getSupplierDetail } from "@/lib/data/suppliers";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { formatDate } from "@/lib/format/dates";
@@ -19,7 +21,10 @@ export default async function SupplierDetailPage({
 }) {
   const { id } = await params;
   const { organization } = await requireCurrentOrg();
-  const detail = await getSupplierDetail(organization.id, id);
+  const [detail, purchases] = await Promise.all([
+    getSupplierDetail(organization.id, id),
+    getSupplierPurchases(organization.id, id),
+  ]);
 
   if (!detail) notFound();
 
@@ -68,7 +73,20 @@ export default async function SupplierDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Precios registrados</CardTitle>
+          <CardTitle>Compras</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="grid gap-2 text-sm sm:max-w-sm">
+            <Row label="Compras recibidas" value={String(purchases.purchaseCount)} />
+            <Row label="Total comprado" value={formatMoney(purchases.totalPurchased, organization.currency)} />
+          </div>
+          <PurchasesTable purchases={purchases.recent} currency={organization.currency} showSupplier={false} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Precios consultados</CardTitle>
         </CardHeader>
         <CardContent>
           {prices.length === 0 ? (

@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format/dates";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, formatUnitCost } from "@/lib/format/money";
 import { formatQuantity } from "@/lib/format/quantity";
 import type { MaterialListItem } from "@/lib/data/materials";
 import type { Tables } from "@/lib/supabase/database.types";
@@ -70,10 +70,18 @@ export function MaterialsTable({
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Último costo</p>
+                <p className="text-xs text-muted-foreground">Costo promedio</p>
                 <p className="font-medium">
-                  {m.lastPrice != null ? formatMoney(m.lastPrice, currency) : "-"}
+                  {m.averageCost != null ? formatUnitCost(m.averageCost, currency) : m.needsInitialization ? <span className="text-warning">Costo no inicializado</span> : "-"}
                 </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Valor de stock</p>
+                <p className="font-medium">{m.inventoryValue != null ? formatMoney(m.inventoryValue, currency) : "-"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Último precio consultado</p>
+                <p className="font-medium">{m.lastPrice != null ? formatMoney(m.lastPrice, currency) : "-"}</p>
               </div>
             </div>
             <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setEditing(m)}>
@@ -91,7 +99,9 @@ export function MaterialsTable({
               <TableHead>Categoría</TableHead>
               <TableHead>Unidad</TableHead>
               <TableHead className="text-right">Stock</TableHead>
-              <TableHead className="text-right">Último costo</TableHead>
+              <TableHead className="text-right">Costo promedio</TableHead>
+              <TableHead className="text-right">Valor de stock</TableHead>
+              <TableHead className="text-right">Último precio consultado</TableHead>
               <TableHead>Proveedor</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="w-16" />
@@ -116,6 +126,16 @@ export function MaterialsTable({
                     </span>
                   </span>
                 </TableCell>
+                <TableCell className="text-right">
+                  {m.averageCost != null ? (
+                    formatUnitCost(m.averageCost, currency)
+                  ) : m.needsInitialization ? (
+                    <span className="text-warning">No inicializado</span>
+                  ) : (
+                    "-"
+                  )}
+                </TableCell>
+                <TableCell className="text-right">{m.inventoryValue != null ? formatMoney(m.inventoryValue, currency) : "-"}</TableCell>
                 <TableCell className="text-right">
                   {m.lastPrice != null ? formatMoney(m.lastPrice, currency) : "-"}
                 </TableCell>

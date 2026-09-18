@@ -13,6 +13,10 @@ export type JobMaterialItem = {
   missing: number;
   varianceQuantity: number;
   notes: string | null;
+  /** Costo real neto (consumos - devoluciones) con costo congelado; null si todavía no hay consumos. */
+  realCost: number | null;
+  /** false si algún movimiento del material en este trabajo no tiene costo (stock sin valoración). */
+  realCostComplete: boolean;
 };
 
 /**
@@ -47,6 +51,14 @@ export async function getJobMaterials(orgId: string, jobId: string): Promise<Job
   if (statusError) throw statusError;
   const statusById = new Map((statusRows ?? []).map((s) => [s.job_material_id, s]));
 
+  const { data: costRows, error: costError } = await supabase
+    .from("job_material_costs")
+    .select("material_id, net_cost, cost_complete")
+    .eq("organization_id", orgId)
+    .eq("job_id", jobId);
+  if (costError) throw costError;
+  const costByMaterial = new Map((costRows ?? []).map((c) => [c.material_id, c]));
+
   return rows.map((r) => {
     const status = statusById.get(r.id);
     return {
@@ -62,6 +74,8 @@ export async function getJobMaterials(orgId: string, jobId: string): Promise<Job
       missing: Number(status?.missing_quantity ?? 0),
       varianceQuantity: Number(status?.variance_quantity ?? 0),
       notes: r.notes,
+      realCost: costByMaterial.has(r.material_id) ? Number(costByMaterial.get(r.material_id)?.net_cost ?? 0) : null,
+      realCostComplete: costByMaterial.get(r.material_id)?.cost_complete ?? true,
     };
   });
 }
