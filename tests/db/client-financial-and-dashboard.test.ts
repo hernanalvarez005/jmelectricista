@@ -26,7 +26,7 @@ describe("client_financial_summary y métricas de dashboard", () => {
     openStatusId = await getAnyStatusId(client, orgId, { closed: false });
     closedStatusId = await getAnyStatusId(client, orgId, { closed: true });
     efectivoId = await getPaymentMethodId(client, orgId, "Efectivo");
-  }, 30_000);
+  }, 90_000);
 
   async function pay(jobId: string, amount: number, date: string) {
     return registerPayment(client, {

@@ -249,3 +249,117 @@ export async function getJobFinancialStatus(client: Client, jobId: string): Prom
   if (error || !data) throw new Error(`No se pudo leer job_financial_status: ${error?.message}`);
   return data as unknown as JobFinancialStatusRow;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 4: compras y valuación
+// ---------------------------------------------------------------------------
+export async function createSupplier(client: Client, organizationId: string, name = "Proveedor test"): Promise<string> {
+  const { data, error } = await client
+    .from("suppliers")
+    .insert({ organization_id: organizationId, name })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo crear proveedor de test: ${error?.message}`);
+  return data.id;
+}
+
+export async function createPurchaseDraft(
+  client: Client,
+  organizationId: string,
+  opts: {
+    supplierId: string;
+    items: { materialId: string; quantity: number; unitCost: number }[];
+    purchaseDate?: string;
+    clientRequestId?: string;
+    sourceJobId?: string;
+  }
+): Promise<string> {
+  const { data, error } = await client.rpc("create_purchase", {
+    p_supplier_id: opts.supplierId,
+    p_purchase_date: opts.purchaseDate ?? "2026-09-20",
+    p_client_request_id: opts.clientRequestId ?? crypto.randomUUID(),
+    p_source_job_id: opts.sourceJobId,
+  });
+  if (error || !data) throw new Error(`create_purchase falló: ${error?.message}`);
+  for (const [i, item] of opts.items.entries()) {
+    const { error: itemError } = await client.from("purchase_items").insert({
+      organization_id: organizationId,
+      purchase_id: data,
+      material_id: item.materialId,
+      quantity: item.quantity,
+      unit_cost: item.unitCost,
+      sort_order: i,
+    });
+    if (itemError) throw new Error(`No se pudo agregar ítem de compra: ${itemError.message}`);
+  }
+  return data as string;
+}
+
+export async function receivePurchase(client: Client, purchaseId: string): Promise<string> {
+  const { data, error } = await client.rpc("receive_purchase", { p_purchase_id: purchaseId });
+  if (error) throw new Error(`receive_purchase falló: ${error.message}`);
+  return data as string;
+}
+
+/** Crea una compra en borrador y la recibe (el caso más común en los tests de valuación). */
+export async function buy(
+  client: Client,
+  organizationId: string,
+  supplierId: string,
+  materialId: string,
+  quantity: number,
+  unitCost: number
+): Promise<string> {
+  const id = await createPurchaseDraft(client, organizationId, {
+    supplierId,
+    items: [{ materialId, quantity, unitCost }],
+  });
+  await receivePurchase(client, id);
+  return id;
+}
+
+export type MaterialValuationRow = {
+  current_stock: number;
+  valuation_initialized: boolean;
+  inventory_value: number | null;
+  average_cost: number | null;
+  needs_initialization: boolean;
+};
+
+export async function getMaterialValuation(client: Client, materialId: string): Promise<MaterialValuationRow> {
+  const { data, error } = await client.from("material_valuation").select("*").eq("material_id", materialId).single();
+  if (error || !data) throw new Error(`No se pudo leer material_valuation: ${error?.message}`);
+  return {
+    current_stock: Number(data.current_stock),
+    valuation_initialized: Boolean(data.valuation_initialized),
+    inventory_value: data.inventory_value != null ? Number(data.inventory_value) : null,
+    average_cost: data.average_cost != null ? Number(data.average_cost) : null,
+    needs_initialization: Boolean(data.needs_initialization),
+  };
+}
+
+export async function getJobCostStatus(client: Client, jobId: string) {
+  const { data, error } = await client.from("job_cost_status").select("*").eq("job_id", jobId).single();
+  if (error || !data) throw new Error(`No se pudo leer job_cost_status: ${error?.message}`);
+  return {
+    estimated: data.estimated_material_cost != null ? Number(data.estimated_material_cost) : null,
+    actual: Number(data.actual_material_cost),
+    complete: Boolean(data.material_cost_complete),
+    variance: data.material_cost_variance != null ? Number(data.material_cost_variance) : null,
+  };
+}
+
+export async function getMovements(client: Client, materialId: string) {
+  const { data, error } = await client
+    .from("stock_movements")
+    .select("id, movement_type, quantity, unit_cost, total_cost, job_id, purchase_id, reversal_of_movement_id, created_at")
+    .eq("material_id", materialId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((m) => ({
+    ...m,
+    quantity: Number(m.quantity),
+    unit_cost: m.unit_cost != null ? Number(m.unit_cost) : null,
+    total_cost: m.total_cost != null ? Number(m.total_cost) : null,
+  }));
+}

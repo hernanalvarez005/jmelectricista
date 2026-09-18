@@ -32,7 +32,7 @@ describe("Cobros — fuente de verdad financiera", () => {
     efectivoId = await getPaymentMethodId(client, orgId, "Efectivo");
     transferenciaId = await getPaymentMethodId(client, orgId, "Transferencia");
     cuentaEfectivoId = await getPaymentAccountId(client, orgId, "Efectivo");
-  }, 30_000);
+  }, 90_000);
 
   async function newJobWithContract(title: string, total: number) {
     const jobId = await createJob(client, orgId, { clientId, statusId, title });

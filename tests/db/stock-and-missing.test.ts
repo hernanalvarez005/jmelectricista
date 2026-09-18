@@ -30,7 +30,7 @@ describe("job_material_status — faltante considera consumo real", () => {
     client = ctx.client;
     unitId = await getSeedUnitId(client, orgId, "m");
     statusOpenId = await getAnyStatusId(client, orgId, { closed: false });
-  }, 30_000);
+  }, 90_000);
 
   async function setup(materialName: string, estimatedQuantity: number, initialStock: number) {
     const materialId = await createMaterial(client, orgId, { name: materialName, unitId });
@@ -195,27 +195,22 @@ describe("job_material_status — faltante considera consumo real", () => {
     expect(total).toBe(25);
   });
 
-  it("política de stock negativo actual: consumir más que el stock físico está permitido (sin bloqueo ni warning en DB)", async () => {
+  it("política de stock (Fase 4): consumir más que el stock físico se rechaza y no altera nada", async () => {
+    // Antes de Fase 4 el stock negativo estaba permitido; con stock valorizado un
+    // saldo negativo haría imposible el costo promedio, así que se bloquea.
     const { jobMaterialId, materialId } = await setup("Cable stock negativo", 50, 10);
 
-    await registerConsumption(client, jobMaterialId, 50);
+    await expect(registerConsumption(client, jobMaterialId, 50)).rejects.toThrow(/stock_insuficiente/);
 
     const status = await getJobMaterialStatus(client, jobMaterialId);
-    expect(status.current_stock).toBe(-40); // documentado: se permite stock físico negativo
-    expect(status.remaining_quantity).toBe(0); // este trabajo ya consumió todo lo estimado
-    // missing_quantity = max(remaining - stock, 0): con stock global negativo,
-    // el faltante refleja el déficit físico a reponer (0 - (-40) = 40) aunque
-    // este job puntual ya no necesite más unidades para sí mismo. Es una
-    // consecuencia esperada de compartir un único stock global entre
-    // trabajos, documentada acá en vez de "corregida" (fuera de alcance de
-    // esta fase cambiar la política de stock negativo).
-    expect(status.missing_quantity).toBe(40);
+    expect(status.current_stock).toBe(10);
+    expect(status.consumed_quantity).toBe(0);
 
     const { data: balance } = await client
       .from("material_stock_balances")
       .select("current_stock")
       .eq("material_id", materialId)
       .single();
-    expect(Number(balance?.current_stock)).toBe(-40);
+    expect(Number(balance?.current_stock)).toBe(10);
   });
 });

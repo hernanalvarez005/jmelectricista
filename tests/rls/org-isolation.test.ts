@@ -54,7 +54,7 @@ describe("RLS — aislamiento entre organizaciones", () => {
     const clientA = await createTestClient(a.client, a.organizationId, "Cliente de A");
     const statusA = await getAnyStatusId(a.client, a.organizationId, { closed: false });
     jobA = await createJob(a.client, a.organizationId, { clientId: clientA, statusId: statusA, title: "Trabajo de A" });
-  }, 30_000);
+  }, 90_000);
 
   it("A no puede leer el material de B", async () => {
     const { data } = await a.client.from("materials").select("*").eq("id", materialB);

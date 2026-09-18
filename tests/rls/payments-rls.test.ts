@@ -30,7 +30,7 @@ describe("RLS — cobros, medios de pago y cuentas", () => {
     efectivoId = await getPaymentMethodId(owner.client, owner.organizationId, "Efectivo");
     jobId = await createJob(owner.client, owner.organizationId, { clientId, statusId, title: "Trabajo roles" });
     await createAcceptedQuote(owner.client, owner.organizationId, { jobId, clientId, total: 100_000 });
-  }, 30_000);
+  }, 90_000);
 
   it("anon no puede leer ni insertar en payment_methods/payment_accounts/job_payments", async () => {
     const anon = anonClient();
@@ -162,7 +162,7 @@ describe("RLS — cobros, aislamiento cross-org", () => {
       paymentMethodId: methodB,
       clientRequestId: randomUUID(),
     });
-  }, 30_000);
+  }, 90_000);
 
   it("A no puede registrar un cobro para el trabajo de B", async () => {
     await expect(

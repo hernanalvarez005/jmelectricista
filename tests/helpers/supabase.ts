@@ -41,16 +41,23 @@ export function uniqueEmail(label: string): string {
 const TEST_PASSWORD = "TestPassword123!";
 
 /**
- * GoTrue local responde a veces "Processing this request timed out" justo
- * después de un `supabase start`/`db reset` (arranque en frío). Se reintenta
- * unas pocas veces solo ese error transitorio; cualquier otro error falla directo.
+ * El stack local responde a veces con timeouts transitorios: GoTrue ("Processing
+ * this request timed out") o PostgREST (`statement timeout` de 8s del rol) justo
+ * después de un `supabase start`/`db reset`, o cuando el Docker compartido está
+ * cargado. Se reintenta unas pocas veces solo ese error transitorio (una
+ * sentencia cancelada por timeout hace rollback, así que reintentar es seguro);
+ * cualquier otro error falla directo.
  */
+function isTransient(message: string | undefined): boolean {
+  return Boolean(message && (message.includes("timed out") || message.includes("statement timeout")));
+}
+
 async function retryTransient<T extends { error: { message: string } | null }>(
   fn: () => PromiseLike<T>,
   attempts = 4
 ): Promise<T> {
   let result = await fn();
-  for (let i = 1; i < attempts && result.error?.message.includes("timed out"); i++) {
+  for (let i = 1; i < attempts && isTransient(result.error?.message); i++) {
     await new Promise((r) => setTimeout(r, 1500 * i));
     result = await fn();
   }
@@ -78,9 +85,9 @@ export async function createTestUserWithOrg(
   );
   if (signInError) throw new Error(`No se pudo loguear usuario de test: ${signInError.message}`);
 
-  const { data: orgId, error: bootstrapError } = await client.rpc("bootstrap_organization", {
-    org_name: `Org de test ${label} ${Date.now()}`,
-  });
+  const { data: orgId, error: bootstrapError } = await retryTransient(() =>
+    client.rpc("bootstrap_organization", { org_name: `Org de test ${label} ${Date.now()}` })
+  );
   if (bootstrapError || !orgId) {
     throw new Error(`No se pudo bootstrapear organización de test: ${bootstrapError?.message}`);
   }

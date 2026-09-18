@@ -17,7 +17,7 @@ describe("Cotizaciones — numeración, totales y máquina de estados", () => {
     unitId = await getSeedUnitId(client, orgId, "u");
     statusId = await getAnyStatusId(client, orgId, { closed: false });
     clientId = await createTestClient(client, orgId, "Cliente cotizaciones");
-  }, 30_000);
+  }, 90_000);
 
   async function createQuoteForNewJob(title: string): Promise<string> {
     const jobId = await createJob(client, orgId, { clientId, statusId, title });

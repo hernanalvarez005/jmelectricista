@@ -22,7 +22,7 @@ describe("RLS — Storage del bucket de cotizaciones", () => {
       .from("quotes")
       .upload(path, new Blob([new Uint8Array([1, 2, 3])]), { contentType: "application/pdf", upsert: true });
     if (error) throw new Error(`No se pudo subir el PDF de test: ${error.message}`);
-  }, 30_000);
+  }, 90_000);
 
   it("el dueño puede generar una signed URL y descargar su propio PDF", async () => {
     const { data, error } = await owner.client.storage.from("quotes").createSignedUrl(path, 60);
@@ -68,7 +68,7 @@ describe("RLS — Storage del bucket de comprobantes de cobro", () => {
       .from("payment-receipts")
       .upload(path, new Blob([new Uint8Array([1, 2, 3])]), { contentType: "image/jpeg", upsert: true });
     if (error) throw new Error(`No se pudo subir el comprobante de test: ${error.message}`);
-  }, 30_000);
+  }, 90_000);
 
   it("el dueño puede generar una signed URL y descargar su propio comprobante", async () => {
     const { data, error } = await owner.client.storage.from("payment-receipts").createSignedUrl(path, 60);
