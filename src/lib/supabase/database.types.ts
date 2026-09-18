@@ -1194,6 +1194,10 @@ export type Database = {
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_operator: { Args: { org_id: string }; Returns: boolean }
       recalc_quote_totals: { Args: { p_quote_id: string }; Returns: undefined }
+      register_job_material_consumption: {
+        Args: { p_actual_quantity: number; p_job_material_id: string }
+        Returns: undefined
+      }
       shares_organization_with: {
         Args: { target_user_id: string }
         Returns: boolean
