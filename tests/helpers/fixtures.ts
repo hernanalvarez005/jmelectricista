@@ -139,3 +139,113 @@ export async function getJobMaterialStatus(client: Client, jobMaterialId: string
   if (error || !data) throw new Error(`No se pudo leer job_material_status: ${error?.message}`);
   return data as unknown as JobMaterialStatusRow;
 }
+
+export async function getPaymentMethodId(
+  client: Client,
+  organizationId: string,
+  name: "Efectivo" | "Transferencia" | "Tarjeta" | "Otro" = "Efectivo"
+): Promise<string> {
+  const { data, error } = await client
+    .from("payment_methods")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("name", name)
+    .single();
+  if (error || !data) throw new Error(`No se encontró el medio de pago semilla '${name}': ${error?.message}`);
+  return data.id;
+}
+
+export async function getPaymentAccountId(client: Client, organizationId: string, name = "Efectivo"): Promise<string> {
+  const { data, error } = await client
+    .from("payment_accounts")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("name", name)
+    .single();
+  if (error || !data) throw new Error(`No se encontró la cuenta semilla '${name}': ${error?.message}`);
+  return data.id;
+}
+
+/** Crea una cotización, un ítem de servicio por `total`, y la transiciona hasta 'accepted'. */
+export async function createAcceptedQuote(
+  client: Client,
+  organizationId: string,
+  opts: { jobId: string; clientId: string; total: number }
+): Promise<string> {
+  const { data: quoteId, error: quoteError } = await client.rpc("create_quote", {
+    p_job_id: opts.jobId,
+    p_client_id: opts.clientId,
+  });
+  if (quoteError || !quoteId) throw new Error(`create_quote falló: ${quoteError?.message}`);
+
+  const { error: itemError } = await client.from("quote_items").insert({
+    organization_id: organizationId,
+    quote_id: quoteId,
+    item_type: "service",
+    description: "Servicio de test",
+    quantity: 1,
+    unit: "trabajo",
+    sale_unit_price: opts.total,
+  });
+  if (itemError) throw new Error(`No se pudo agregar ítem de cotización de test: ${itemError.message}`);
+
+  const { error: sentError } = await client.from("quotes").update({ status: "sent" }).eq("id", quoteId);
+  if (sentError) throw new Error(`No se pudo marcar la cotización como enviada: ${sentError.message}`);
+
+  const { error: acceptError } = await client.from("quotes").update({ status: "accepted" }).eq("id", quoteId);
+  if (acceptError) throw new Error(`No se pudo aceptar la cotización: ${acceptError.message}`);
+
+  return quoteId as string;
+}
+
+export async function registerPayment(
+  client: Client,
+  opts: {
+    jobId: string;
+    paymentDate: string;
+    amount: number;
+    paymentMethodId: string;
+    paymentAccountId?: string | null;
+    reference?: string;
+    notes?: string;
+    receiptPath?: string;
+    clientRequestId: string;
+  }
+): Promise<string> {
+  const { data, error } = await client.rpc("register_job_payment", {
+    p_job_id: opts.jobId,
+    p_payment_date: opts.paymentDate,
+    p_amount: opts.amount,
+    p_payment_method_id: opts.paymentMethodId,
+    p_client_request_id: opts.clientRequestId,
+    p_payment_account_id: opts.paymentAccountId ?? undefined,
+    p_reference: opts.reference ?? undefined,
+    p_notes: opts.notes ?? undefined,
+    p_receipt_path: opts.receiptPath ?? undefined,
+  });
+  if (error || !data) throw new Error(`register_job_payment falló: ${error?.message}`);
+  return data as string;
+}
+
+export async function voidPayment(client: Client, paymentId: string, reason: string): Promise<void> {
+  const { error } = await client.rpc("void_job_payment", { p_payment_id: paymentId, p_void_reason: reason });
+  if (error) throw new Error(`void_job_payment falló: ${error.message}`);
+}
+
+export type JobFinancialStatusRow = {
+  organization_id: string;
+  job_id: string;
+  accepted_quote_id: string | null;
+  contracted_amount: number | null;
+  collected_amount: number;
+  outstanding_amount: number | null;
+  overpaid_amount: number;
+  payment_status: "no_contract" | "unpaid" | "partial" | "paid";
+  last_payment_date: string | null;
+};
+
+export async function getJobFinancialStatus(client: Client, jobId: string): Promise<JobFinancialStatusRow> {
+  const { data, error } = await client.from("job_financial_status").select("*").eq("job_id", jobId).single();
+  if (error || !data) throw new Error(`No se pudo leer job_financial_status: ${error?.message}`);
+  return data as unknown as JobFinancialStatusRow;
+}

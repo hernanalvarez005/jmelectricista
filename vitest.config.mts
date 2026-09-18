@@ -15,7 +15,7 @@ export default defineConfig({
     // default de 5s no alcanza justo después de un `supabase start`/`db
     // reset` en frío (Auth/Postgres todavía calentando).
     fileParallelism: false,
-    testTimeout: 20_000,
-    hookTimeout: 30_000,
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });

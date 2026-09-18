@@ -154,6 +154,24 @@ Las migraciones versionadas viven en `supabase/migrations/`. Resumen:
   trabajo (cuanto más se consumía correctamente, más alto parecía el
   faltante).
 
+**Fase 3**
+
+- `..._payments_schema.sql`: `payment_methods`, `payment_accounts`,
+  `job_payments` (append-only, con `client_request_id` único por organización
+  para idempotencia), trigger de integridad cross-org + "método que requiere
+  cuenta exige cuenta", y los RPC `register_job_payment` / `void_job_payment`.
+- `..._payments_rls.sql`: RLS de las tres tablas y bucket privado
+  `payment-receipts` en Storage.
+- `..._one_accepted_quote_per_job.sql`: índice único parcial
+  `quotes_one_accepted_per_job` (una sola cotización `accepted` por trabajo).
+  Antes de aplicarlo se verificó que no había trabajos con más de una aceptada.
+- `..._financial_views.sql`: vistas `job_financial_status` y
+  `client_financial_summary` (`security_invoker`).
+- `..._payments_bootstrap_and_backfill.sql`: medios de pago y cuenta
+  "Efectivo" semilla para organizaciones existentes y futuras.
+- `..._register_job_payment_optional_args.sql`: argumentos opcionales con
+  default en `register_job_payment` (tipado generado correcto).
+
 Reglas de acceso por rol (mismo patrón en toda la app):
 
 - **viewer**: solo lectura de los datos de su organización.
@@ -240,6 +258,62 @@ queda cubierto por un test en `tests/db/stock-and-missing.test.ts`.
 - Aceptar una cotización **no** cambia el estado del trabajo automáticamente:
   la UI pregunta explícitamente si querés actualizarlo y a qué estado.
 
+## Cobros, saldos y tiempo real (Fase 3)
+
+**Cobro** = dinero recibido. No es una factura ni un comprobante fiscal (no hay
+integración con ARCA/CAE/IVA).
+
+Fuentes de verdad (vista `job_financial_status`, única implementación):
+
+| Campo | Definición |
+| --- | --- |
+| `contracted_amount` | `total` de la única cotización `accepted` del trabajo; `null` si no hay. No existe un "monto contratado" editable. |
+| `collected_amount` | `SUM(job_payments.amount)` con `voided_at IS NULL`. |
+| `outstanding_amount` | `null` sin contrato; si no, `max(contracted - collected, 0)`. Nunca negativo. |
+| `overpaid_amount` | `0` sin contrato; si no, `max(collected - contracted, 0)` ("Excedente cobrado"). |
+| `payment_status` | derivado, no guardado: `no_contract` / `unpaid` / `partial` / `paid`. |
+
+- **Una cotización aceptada por trabajo**: garantizado por el índice único
+  parcial `quotes_one_accepted_per_job`. Aceptar una segunda falla con
+  "Ya existe una cotización aceptada para este trabajo." Sin cotización
+  aceptada el saldo es *no calculable* (nunca `$0`), y los cobros siguen visibles.
+- **Inmutabilidad**: `job_payments` no tiene policies de INSERT/UPDATE/DELETE.
+  Se crea solo con `register_job_payment` y se corrige solo con
+  `void_job_payment` (anulación con motivo obligatorio; el registro original
+  queda visible como ANULADO y no cuenta en el total).
+- **Idempotencia**: el formulario genera un `client_request_id` (UUID) al
+  abrirse; reenviarlo (doble click, retry, requests concurrentes) devuelve el
+  mismo cobro, nunca un segundo. Constraint `unique (organization_id, client_request_id)`.
+- **Medio que requiere cuenta**: si `payment_methods.requires_account`, la
+  cuenta es obligatoria (validado en trigger de DB, no solo en el frontend).
+- **Roles**: owner/admin/worker registran cobros; **solo owner/admin anulan** y
+  configuran medios/cuentas; viewer solo lee.
+- **Comprobantes**: bucket privado `payment-receipts`, path
+  `organizations/{org}/jobs/{job}/payments/{client_request_id}/{archivo}` (se usa
+  `client_request_id` en vez del id del cobro porque el archivo se sube *antes*
+  de crear el cobro). PDF/JPG/PNG/WEBP, máx. 8 MB, acceso por signed URL de 5 min.
+- Cambiar el estado del trabajo al saldar es una **confirmación explícita**
+  (nunca automático; los estados son configurables y solo se usa `is_closed`).
+- "Cerrado" = `job_statuses.is_closed`; la fecha de cierre se deriva de
+  `job_status_history` (última entrada a un estado cerrado), no de `updated_at`.
+- Actividad del trabajo: se deriva combinando `job_status_history` y
+  `job_payments` (registro/anulación); no hay tabla de eventos aparte.
+- Fuera de alcance: reembolsos reales, facturación fiscal, conciliación bancaria.
+
+**Tiempo real**: `estimated_minutes` (trabajo) vs `actual_start_at/actual_end_at`
+(sesiones completadas). El tiempo *planificado* nunca se usa como sustituto del
+real: una sesión completada sin tiempo real aporta 0 minutos y marca
+"Datos reales incompletos". Al completar una sesión se piden hora real de
+inicio/fin (con "Usar horario planificado" como prefill explícito) y se puede
+corregir después. Helper puro: `src/lib/time/job-time-status.ts`.
+
+**Limitación explícita — no hay rentabilidad real todavía.** No existe una
+política de valoración del stock consumido (FIFO/promedio/lotes), y el historial
+de precios de proveedor no es el costo real de lo que ya se compró. Por eso la
+app **no** calcula "costo real", "ganancia" ni "margen real"; solo muestra el
+costo interno *estimado* de la cotización ("Margen estimado antes de otros
+costos"), cantidades estimadas vs reales, horas y cobros.
+
 ## Tests
 
 ```
@@ -310,6 +384,11 @@ stock`), vista `job_material_status` como fuente única de esa fórmula,
 suite de tests versionada (`tests/unit`, `tests/db`, `tests/rls`) contra
 Supabase local real, y verificación manual en mobile (375px) de proveedores,
 ficha de proveedor, ficha de material y el editor de cotizaciones.
+
+**Fase 3**: medios de pago y cuentas configurables, cobros (parciales,
+anulables, idempotentes, con comprobante), saldos derivados, tab Cobros en el
+trabajo, página `/app/cobros`, resumen financiero en cliente y dashboard,
+tiempo real vs estimado y advertencias de cierre no bloqueantes.
 
 Fuera de alcance (a propósito, ver secciones de arriba y el prompt de Fase 2):
 cobros/facturación fiscal, caja, cuentas corrientes de proveedores, reserva de
