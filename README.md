@@ -333,6 +333,86 @@ costos"), cantidades estimadas vs reales, horas y cobros.
   son legítimas. No existe INSERT directo sobre `job_sessions`.
 - `npm run test:tz` corre los tests unitarios en UTC y en Buenos Aires.
 
+## Compras, stock valorizado y costo real de materiales (Fase 4)
+
+Una **compra** es la adquisición física de materiales; no es un pago (no hay
+cuentas corrientes ni vencimientos de proveedores).
+
+- **Compras** (`purchases` + `purchase_items`): numeración atómica `COM-000001`
+  por organización, estados `draft` -> `received` | `cancelled`. Crear/editar
+  borradores lo puede hacer cualquier operador; **recibir y cancelar** solo
+  owner/admin (recibir fija valor de inventario). Un borrador no toca el stock.
+  El estado solo cambia por los RPC `receive_purchase` / `cancel_purchase`
+  (un `UPDATE` directo del estado es rechazado por trigger), y una compra
+  recibida es de solo lectura (solo se puede adjuntar/reemplazar el documento).
+  `create_purchase` es idempotente por `client_request_id`.
+- **Recibir** (`receive_purchase`): transaccional e idempotente. Bloquea la fila de
+  la compra, genera un movimiento `in` valorizado por ítem (`purchase_id`,
+  `purchase_item_id`) y marca la compra como recibida. Reenviar/doble click/
+  concurrencia genera los movimientos una sola vez. Los movimientos ligados a una
+  compra solo pueden crearse dentro de ese RPC.
+- **Valoración por costo promedio ponderado móvil**. Fuentes de verdad:
+  cantidad física = `material_stock_balances`; valor de inventario =
+  `material_inventory_valuation.inventory_value`; **costo promedio = valor /
+  cantidad** (derivado); costo de un consumo = `stock_movements.unit_cost/total_cost`,
+  **congelado** al insertarse y nunca recalculado con compras o precios posteriores.
+  Todo se aplica en el trigger `apply_stock_valuation` (bajo lock del material), así
+  que ninguna ruta de escritura puede saltearlo y dos movimientos concurrentes se
+  serializan. Al vaciar el stock el valor queda exactamente en 0 (sin residuo de
+  redondeo). Escalas: cantidades `numeric(14,3)`/`(18,3)`, costo unitario
+  `numeric(18,6)`, importes `numeric(20,6)`.
+- **Devoluciones** (`return`) enlazadas al consumo original
+  (`reversal_of_movement_id`): restauran el costo histórico de lo que revierten y
+  no pueden exceder lo consumido. Una corrección de consumo hacia abajo se reparte
+  entre los consumos del propio trabajo (el más reciente primero).
+- **Ajustes**: `adjustment_out` sale al costo promedio vigente; `adjustment_in` y el
+  stock inicial **requieren costo unitario**.
+- **Stock negativo bloqueado** (`stock_insuficiente`): consumir o ajustar a la baja
+  por encima del stock físico se rechaza. (Antes de Fase 4 estaba permitido;
+  los saldos negativos históricos se reportan en la migración pero no se corrigen.)
+- **Stock anterior a la valoración** (los movimientos históricos NO reciben ningún
+  costo, ni el último precio de proveedor): el material queda en "Costo no
+  inicializado" y sus consumos se registran sin costo. Un owner/admin ejecuta
+  **Inicializar valoración** (ficha del material, `initialize_material_valuation`)
+  con un costo unitario explícito; queda auditado en `material_valuation_events`
+  y no reescribe los movimientos viejos. Un material con stock 0 se valoriza con
+  su primera compra. Mientras haya stock sin costo, ingresar stock valorizado se
+  bloquea (`valoracion_no_inicializada`) para no mezclar costos.
+- **Precio consultado != costo de compra**: `supplier_material_prices` (lo que un
+  proveedor cotizó) es un dato aparte y nunca se usa para costear consumos. La ficha
+  del material muestra por separado costo promedio, valor del stock, última compra
+  y último precio consultado.
+- **Costo real de materiales por trabajo** (`job_cost_status`, `job_material_costs`):
+  real = consumos - devoluciones a costo congelado; estimado = suma de
+  `cantidad x cost_unit_price` de los ítems de material de la cotización aceptada;
+  desvío = real - estimado. Si algún consumo del trabajo no tiene costo
+  (`material_cost_complete = false`) la UI muestra "Costo real incompleto" en lugar
+  de un total parcial. El desvío se marca como *parcial* mientras haya materiales
+  pendientes de consumir. Es solo costo de materiales: **no es rentabilidad**
+  (no incluye mano de obra ni otros costos).
+- **Crear compra desde el faltante**: `/app/compras/nueva?job=<id>` precarga
+  `job_material_status.missing_quantity` (no el estimado ni el pendiente). No reserva
+  stock; `source_job_id` es solo contexto de creación, el costo se imputa al trabajo
+  cuando el material se consume.
+- **Documento del proveedor**: bucket privado `purchase-documents`
+  (`organizations/{org}/purchases/{purchase}/...`), acceso por URL firmada
+  (`/api/purchases/[id]/document`), policies por organización.
+- UI: `/app/compras` (filtros por proveedor/estado/fechas, cards en mobile),
+  `/app/compras/nueva`, `/app/compras/[id]`, tarjeta "Costos de materiales" en el
+  resumen del trabajo, costo real por material en la tab Materiales, compras en la
+  ficha del proveedor, y en el dashboard: compras del mes, materiales sin
+  valoración y trabajos finalizados con costo incompleto.
+- Migraciones: `20260922000001`..`05` (schema de compras, valoración, recepción,
+  RLS/Storage, vistas de costo). Tests: `tests/db/valuation.test.ts`,
+  `tests/db/purchases.test.ts`, `tests/rls/purchases-rls.test.ts`,
+  `tests/unit/purchase-validation.test.ts`.
+
+Fuera de alcance de esta fase: pagos a proveedores/cuentas corrientes,
+vencimientos, IVA/ARCA, costos indirectos, mano de obra, reservas de stock,
+órdenes de compra complejas, recepciones parciales, múltiples depósitos, lotes,
+FIFO/LIFO, OCR e integración bancaria. Cancelar una compra ya recibida tampoco
+está soportado (habría que revertir movimientos valorizados).
+
 ## Tests
 
 ```
@@ -352,6 +432,14 @@ npm run test:db         # DB — requiere Supabase local corriendo
 npm run test:rls        # RLS — requiere Supabase local corriendo
 npm run test:all        # los tres, en orden
 ```
+
+Nota: sobre el stack local cargado (Docker compartido con otros proyectos o
+justo después de un `db reset`) PostgREST puede cancelar alguna sentencia por el
+`statement_timeout` de 8s del rol (`canceling statement due to statement timeout`)
+de forma intermitente y en cualquier test. Los helpers reintentan el alta de
+usuarios/organizaciones ante ese error transitorio; si un test falla así, volvé a
+correr la suite (no es un fallo funcional). Tras un `db reset` conviene además
+`docker restart supabase_rest_<proyecto>` para refrescar el schema cache.
 
 Los tests de `db/` y `rls/` nunca mockean Postgres: crean usuarios y
 organizaciones reales vía `supabase.auth.admin` + `bootstrap_organization`,
@@ -408,6 +496,10 @@ ficha de proveedor, ficha de material y el editor de cotizaciones.
 anulables, idempotentes, con comprobante), saldos derivados, tab Cobros en el
 trabajo, página `/app/cobros`, resumen financiero en cliente y dashboard,
 tiempo real vs estimado y advertencias de cierre no bloqueantes.
+
+**Fase 4**: compras a proveedores, entradas de stock valorizadas (costo
+promedio ponderado móvil), stock negativo bloqueado, inicialización auditada de
+stock histórico y costo real de materiales por trabajo (ver sección arriba).
 
 Fuera de alcance (a propósito, ver secciones de arriba y el prompt de Fase 2):
 cobros/facturación fiscal, caja, cuentas corrientes de proveedores, reserva de
