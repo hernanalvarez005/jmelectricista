@@ -129,6 +129,13 @@ export type Database = {
             foreignKeyName: "client_addresses_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "client_financial_summary"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "client_addresses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
@@ -227,6 +234,13 @@ export type Database = {
             foreignKeyName: "job_materials_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
@@ -242,6 +256,99 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_payments: {
+        Row: {
+          amount: number
+          client_request_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          job_id: string
+          notes: string | null
+          organization_id: string
+          payment_account_id: string | null
+          payment_date: string
+          payment_method_id: string
+          receipt_path: string | null
+          reference: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          amount: number
+          client_request_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          organization_id: string
+          payment_account_id?: string | null
+          payment_date: string
+          payment_method_id: string
+          receipt_path?: string | null
+          reference?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          amount?: number
+          client_request_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          organization_id?: string
+          payment_account_id?: string | null
+          payment_date?: string
+          payment_method_id?: string
+          receipt_path?: string | null
+          reference?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_payments_payment_account_id_fkey"
+            columns: ["payment_account_id"]
+            isOneToOne: false
+            referencedRelation: "payment_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_payments_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
         ]
@@ -301,6 +408,13 @@ export type Database = {
             foreignKeyName: "job_sessions_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_sessions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
@@ -348,6 +462,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "job_statuses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_status_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "job_status_history_job_id_fkey"
@@ -523,6 +644,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "client_addresses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "client_financial_summary"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "jobs_client_id_fkey"
@@ -756,6 +884,94 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_accounts: {
+        Row: {
+          account_type: string
+          active: boolean
+          alias: string | null
+          bank_name: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_type: string
+          active?: boolean
+          alias?: string | null
+          bank_name?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_type?: string
+          active?: boolean
+          alias?: string | null
+          bank_name?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          requires_account: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          requires_account?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          requires_account?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -865,6 +1081,13 @@ export type Database = {
             foreignKeyName: "quote_items_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["accepted_quote_id"]
+          },
+          {
+            foreignKeyName: "quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
             referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
@@ -939,8 +1162,22 @@ export type Database = {
             foreignKeyName: "quotes_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "client_financial_summary"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "quotes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "quotes_job_id_fkey"
@@ -993,6 +1230,13 @@ export type Database = {
           quantity?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "stock_movements_job_id_fkey"
             columns: ["job_id"]
@@ -1126,6 +1370,47 @@ export type Database = {
       }
     }
     Views: {
+      client_financial_summary: {
+        Row: {
+          client_id: string | null
+          collected_amount: number | null
+          contracted_amount: number | null
+          organization_id: string | null
+          outstanding_amount: number | null
+          uncontracted_collections: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_financial_status: {
+        Row: {
+          accepted_quote_id: string | null
+          collected_amount: number | null
+          contracted_amount: number | null
+          job_id: string | null
+          last_payment_date: string | null
+          organization_id: string | null
+          outstanding_amount: number | null
+          overpaid_amount: number | null
+          payment_status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_material_status: {
         Row: {
           consumed_quantity: number | null
@@ -1140,6 +1425,13 @@ export type Database = {
           variance_quantity: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "job_materials_job_id_fkey"
             columns: ["job_id"]
@@ -1235,11 +1527,29 @@ export type Database = {
         Args: { p_actual_quantity: number; p_job_material_id: string }
         Returns: undefined
       }
+      register_job_payment: {
+        Args: {
+          p_amount: number
+          p_client_request_id: string
+          p_job_id: string
+          p_notes?: string
+          p_payment_account_id?: string
+          p_payment_date: string
+          p_payment_method_id: string
+          p_receipt_path?: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       shares_organization_with: {
         Args: { target_user_id: string }
         Returns: boolean
       }
       unaccent: { Args: { "": string }; Returns: string }
+      void_job_payment: {
+        Args: { p_payment_id: string; p_void_reason: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
