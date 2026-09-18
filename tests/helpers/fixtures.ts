@@ -1,0 +1,141 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "@/lib/supabase/database.types";
+
+type Client = SupabaseClient<Database>;
+
+export async function getSeedUnitId(client: Client, organizationId: string, symbol = "m"): Promise<string> {
+  const { data, error } = await client
+    .from("material_units")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("symbol", symbol)
+    .single();
+  if (error || !data) throw new Error(`No se encontró la unidad semilla '${symbol}': ${error?.message}`);
+  return data.id;
+}
+
+export async function createMaterial(
+  client: Client,
+  organizationId: string,
+  opts: { name: string; unitId: string }
+): Promise<string> {
+  const { data, error } = await client
+    .from("materials")
+    .insert({ organization_id: organizationId, unit_id: opts.unitId, name: opts.name })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo crear material de test: ${error?.message}`);
+  return data.id;
+}
+
+export async function createTestClient(client: Client, organizationId: string, name: string): Promise<string> {
+  const { data, error } = await client
+    .from("clients")
+    .insert({ organization_id: organizationId, name })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo crear cliente de test: ${error?.message}`);
+  return data.id;
+}
+
+export async function getAnyStatusId(
+  client: Client,
+  organizationId: string,
+  opts: { closed?: boolean } = {}
+): Promise<string> {
+  let query = client.from("job_statuses").select("id, is_closed").eq("organization_id", organizationId);
+  if (opts.closed !== undefined) query = query.eq("is_closed", opts.closed);
+  const { data, error } = await query.limit(1).single();
+  if (error || !data) throw new Error(`No se encontró job_status: ${error?.message}`);
+  return data.id;
+}
+
+export async function createJob(
+  client: Client,
+  organizationId: string,
+  opts: { clientId: string; statusId: string; title: string }
+): Promise<string> {
+  const { data, error } = await client
+    .from("jobs")
+    .insert({
+      organization_id: organizationId,
+      client_id: opts.clientId,
+      status_id: opts.statusId,
+      title: opts.title,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo crear trabajo de test: ${error?.message}`);
+  return data.id;
+}
+
+export async function addJobMaterial(
+  client: Client,
+  organizationId: string,
+  opts: { jobId: string; materialId: string; estimatedQuantity: number }
+): Promise<string> {
+  const { data, error } = await client
+    .from("job_materials")
+    .insert({
+      organization_id: organizationId,
+      job_id: opts.jobId,
+      material_id: opts.materialId,
+      estimated_quantity: opts.estimatedQuantity,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo agregar job_material de test: ${error?.message}`);
+  return data.id;
+}
+
+export async function addStockMovement(
+  client: Client,
+  organizationId: string,
+  opts: {
+    materialId: string;
+    movementType: "in" | "consumption" | "return" | "adjustment_in" | "adjustment_out";
+    quantity: number;
+    jobId?: string;
+  }
+): Promise<void> {
+  const { error } = await client.from("stock_movements").insert({
+    organization_id: organizationId,
+    material_id: opts.materialId,
+    movement_type: opts.movementType,
+    quantity: opts.quantity,
+    job_id: opts.jobId ?? null,
+  });
+  if (error) throw new Error(`No se pudo insertar movimiento de stock de test: ${error.message}`);
+}
+
+export async function registerConsumption(client: Client, jobMaterialId: string, actualQuantity: number) {
+  const { error } = await client.rpc("register_job_material_consumption", {
+    p_job_material_id: jobMaterialId,
+    p_actual_quantity: actualQuantity,
+  });
+  if (error) throw new Error(`register_job_material_consumption falló: ${error.message}`);
+}
+
+export type JobMaterialStatusRow = {
+  job_material_id: string;
+  organization_id: string;
+  job_id: string;
+  material_id: string;
+  estimated_quantity: number;
+  consumed_quantity: number;
+  remaining_quantity: number;
+  current_stock: number;
+  missing_quantity: number;
+  variance_quantity: number;
+};
+
+export async function getJobMaterialStatus(client: Client, jobMaterialId: string): Promise<JobMaterialStatusRow> {
+  const { data, error } = await client
+    .from("job_material_status")
+    .select("*")
+    .eq("job_material_id", jobMaterialId)
+    .single();
+  if (error || !data) throw new Error(`No se pudo leer job_material_status: ${error?.message}`);
+  return data as unknown as JobMaterialStatusRow;
+}
