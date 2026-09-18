@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance] = await Promise.all([
     getDashboardData(organization.id, organization.timezone),
     getJobsWithMissingMaterials(organization.id),
-    getQuoteDashboardStats(organization.id),
+    getQuoteDashboardStats(organization.id, organization.timezone),
     getPaymentsDashboardStats(organization.id, organization.timezone),
     getJobsWithOutstandingBalance(organization.id),
   ]);

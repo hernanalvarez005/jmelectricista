@@ -1,3 +1,4 @@
+import { dateKeyInTZ, monthStartKey, todayKeyInTZ } from "@/lib/scheduling/timezone";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/database.types";
 
@@ -60,7 +61,7 @@ export async function getQuoteCounts(orgId: string): Promise<Record<string, numb
 
 export type QuoteDashboardStats = { drafts: number; sentPending: number; acceptedThisMonth: number };
 
-export async function getQuoteDashboardStats(orgId: string): Promise<QuoteDashboardStats> {
+export async function getQuoteDashboardStats(orgId: string, timezone: string): Promise<QuoteDashboardStats> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("quotes")
@@ -68,8 +69,8 @@ export async function getQuoteDashboardStats(orgId: string): Promise<QuoteDashbo
     .eq("organization_id", orgId);
   if (error) throw error;
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // "Este mes" según la zona horaria de la organización, no la del servidor.
+  const monthStart = monthStartKey(todayKeyInTZ(timezone));
 
   let drafts = 0;
   let sentPending = 0;
@@ -77,7 +78,7 @@ export async function getQuoteDashboardStats(orgId: string): Promise<QuoteDashbo
   for (const row of data ?? []) {
     if (row.status === "draft") drafts++;
     if (row.status === "sent") sentPending++;
-    if (row.status === "accepted" && row.accepted_at && new Date(row.accepted_at) >= monthStart) {
+    if (row.status === "accepted" && row.accepted_at && dateKeyInTZ(row.accepted_at, timezone) >= monthStart) {
       acceptedThisMonth++;
     }
   }

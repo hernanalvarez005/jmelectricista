@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
+import { zonedDateTimeToIso } from "@/lib/scheduling/timezone";
+
 import { canOperate, requireCurrentOrg } from "@/lib/data/current-org";
 import { parseDecimal } from "@/lib/format/quantity";
 import { createClient as createSupabaseClient } from "@/lib/supabase/server";
@@ -89,7 +91,9 @@ export async function registerSupplierPriceAction(
       material_id: materialId,
       price,
       currency: organization.currency,
-      recorded_at: new Date(parsed.data.recordedAt).toISOString(),
+      // El usuario elige una fecha (calendario); se guarda al mediodía de la zona
+      // de la organización para que se muestre ese mismo día en cualquier lado.
+      recorded_at: zonedDateTimeToIso(parsed.data.recordedAt, "12:00", organization.timezone),
       notes: parsed.data.notes || null,
       created_by: user?.id ?? null,
     })

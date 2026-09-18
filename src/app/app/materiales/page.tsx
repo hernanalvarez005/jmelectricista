@@ -41,6 +41,7 @@ export default async function MaterialesPage({
         categories={categories}
         units={units}
         currency={organization.currency}
+        timezone={organization.timezone}
       />
     </div>
   );

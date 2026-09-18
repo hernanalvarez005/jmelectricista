@@ -1,7 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import { brand } from "@/lib/brand";
-import { formatDate } from "@/lib/format/dates";
+import { formatDateOnly } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
 import type { Tables } from "@/lib/supabase/database.types";
 
@@ -90,7 +90,7 @@ export function QuoteDocument({
           </View>
           <View style={styles.quoteBox}>
             <Text style={styles.quoteNumber}>{quote.quote_number}</Text>
-            <Text>{formatDate(`${quote.issue_date}T00:00:00Z`)}</Text>
+            <Text>{formatDateOnly(quote.issue_date)}</Text>
           </View>
         </View>
 
@@ -154,7 +154,7 @@ export function QuoteDocument({
         <View style={styles.footer}>
           {quote.valid_until && (
             <Text style={styles.footerText}>
-              Válida hasta el {formatDate(`${quote.valid_until}T00:00:00Z`)}.
+              Válida hasta el {formatDateOnly(quote.valid_until)}.
             </Text>
           )}
           {quote.terms && <Text style={styles.footerText}>{quote.terms}</Text>}

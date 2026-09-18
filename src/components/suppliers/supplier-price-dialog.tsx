@@ -26,15 +26,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { todayKeyInTZ } from "@/lib/scheduling/timezone";
 import { supplierPriceSchema, type SupplierPriceInput } from "@/lib/validations/supplier";
 
 /** Registra un precio de proveedor para un material puntual (ficha de material). */
 export function SupplierPriceDialog({
   materialId,
   suppliers,
+  timezone,
   trigger,
 }: {
   materialId: string;
+  timezone: string;
   suppliers: { id: string; name: string }[];
   trigger: React.ReactNode;
 }) {
@@ -54,7 +57,7 @@ export function SupplierPriceDialog({
     defaultValues: {
       supplierId: suppliers[0]?.id ?? "",
       price: "",
-      recordedAt: new Date().toISOString().slice(0, 10),
+      recordedAt: todayKeyInTZ(timezone),
       notes: "",
     },
   });

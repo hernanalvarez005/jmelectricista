@@ -27,7 +27,7 @@ export default async function ProveedoresPage() {
           }
         />
       </div>
-      <SuppliersTable suppliers={suppliers} />
+      <SuppliersTable suppliers={suppliers} timezone={organization.timezone} />
     </div>
   );
 }

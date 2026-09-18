@@ -81,7 +81,7 @@ export default async function SupplierDetailPage({
                     {p.materialName}
                   </Link>
                   <span>{formatMoney(Number(p.price), p.currency)}</span>
-                  <span className="text-muted-foreground">{formatDate(p.recorded_at)}</span>
+                  <span className="text-muted-foreground">{formatDate(p.recorded_at, organization.timezone)}</span>
                 </div>
               ))}
             </div>

@@ -16,7 +16,7 @@ import { formatDate } from "@/lib/format/dates";
 import { buildWhatsAppLink } from "@/lib/format/phone";
 import type { SupplierListItem } from "@/lib/data/suppliers";
 
-export function SuppliersTable({ suppliers }: { suppliers: SupplierListItem[] }) {
+export function SuppliersTable({ suppliers, timezone }: { suppliers: SupplierListItem[]; timezone: string }) {
   if (suppliers.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -56,7 +56,7 @@ export function SuppliersTable({ suppliers }: { suppliers: SupplierListItem[] })
               </div>
               {s.lastPriceDate && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Último precio: {formatDate(s.lastPriceDate)}
+                  Último precio: {formatDate(s.lastPriceDate, timezone)}
                 </p>
               )}
             </div>
@@ -88,7 +88,7 @@ export function SuppliersTable({ suppliers }: { suppliers: SupplierListItem[] })
                   </TableCell>
                   <TableCell>{s.contact_name || "-"}</TableCell>
                   <TableCell>{s.phone || "-"}</TableCell>
-                  <TableCell>{s.lastPriceDate ? formatDate(s.lastPriceDate) : "-"}</TableCell>
+                  <TableCell>{s.lastPriceDate ? formatDate(s.lastPriceDate, timezone) : "-"}</TableCell>
                   <TableCell>
                     <Badge variant={s.active ? "default" : "secondary"}>
                       {s.active ? "Activo" : "Inactivo"}

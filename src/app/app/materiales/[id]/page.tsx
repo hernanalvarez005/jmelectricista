@@ -95,7 +95,7 @@ export default async function MaterialDetailPage({
                       {["in", "return", "adjustment_in"].includes(mv.movement_type) ? "+" : "-"}
                       {formatQuantity(Number(mv.quantity), unit.symbol)}
                     </span>
-                    <span className="text-muted-foreground">{formatDateTime(mv.created_at)}</span>
+                    <span className="text-muted-foreground">{formatDateTime(mv.created_at, organization.timezone)}</span>
                   </div>
                 ))
               )}
@@ -109,6 +109,7 @@ export default async function MaterialDetailPage({
           <CardTitle>Historial de precios</CardTitle>
           <SupplierPriceDialog
             materialId={material.id}
+            timezone={organization.timezone}
             suppliers={suppliers.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name }))}
             trigger={<Button size="sm">Registrar precio</Button>}
           />
@@ -126,7 +127,7 @@ export default async function MaterialDetailPage({
                   <span className="font-medium">{p.supplierName}</span>
                   <div className="flex items-center justify-between gap-4 sm:contents">
                     <span>{formatMoney(Number(p.price), p.currency)}</span>
-                    <span className="text-muted-foreground">{formatDate(p.recorded_at)}</span>
+                    <span className="text-muted-foreground">{formatDate(p.recorded_at, organization.timezone)}</span>
                   </div>
                 </div>
               ))}

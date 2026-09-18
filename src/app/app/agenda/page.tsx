@@ -26,7 +26,7 @@ export default async function AgendaPage({
         </p>
       </div>
 
-      <AgendaWeekNav mondayKey={mondayKey} timezone={organization.timezone} />
+      <AgendaWeekNav mondayKey={mondayKey} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {days.map((day) => (

@@ -26,11 +26,13 @@ export function MaterialsTable({
   categories,
   units,
   currency,
+  timezone,
 }: {
   materials: MaterialListItem[];
   categories: Tables<"material_categories">[];
   units: Tables<"material_units">[];
   currency: string;
+  timezone: string;
 }) {
   const [editing, setEditing] = useState<MaterialListItem | null>(null);
 
@@ -119,7 +121,7 @@ export function MaterialsTable({
                 </TableCell>
                 <TableCell>
                   {m.lastPriceSupplierName ? (
-                    <span title={m.lastPriceDate ? formatDate(m.lastPriceDate) : undefined}>
+                    <span title={m.lastPriceDate ? formatDate(m.lastPriceDate, timezone) : undefined}>
                       {m.lastPriceSupplierName}
                     </span>
                   ) : (

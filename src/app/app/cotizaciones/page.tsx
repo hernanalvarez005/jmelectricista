@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { listQuotes } from "@/lib/data/quotes";
-import { formatDate } from "@/lib/format/dates";
+import { formatDateOnly } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
 import { quoteStatusLabels } from "@/lib/validations/quote";
 
@@ -68,7 +68,7 @@ export default async function CotizacionesPage({
                   </TableCell>
                   <TableCell>{q.clientName}</TableCell>
                   <TableCell>{q.jobTitle}</TableCell>
-                  <TableCell>{formatDate(`${q.issue_date}T00:00:00Z`)}</TableCell>
+                  <TableCell>{formatDateOnly(q.issue_date)}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant[q.status] ?? "outline"}>
                       {quoteStatusLabels[q.status] ?? q.status}

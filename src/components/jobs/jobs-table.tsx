@@ -10,7 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, formatDateTime } from "@/lib/format/dates";
+import { todayKeyInTZ } from "@/lib/scheduling/timezone";
+import { formatDateOnly, formatDateTime } from "@/lib/format/dates";
 import { formatMinutesCompact } from "@/lib/format/duration";
 import { jobPriorityLabel } from "@/lib/validations/job";
 import type { JobListItem } from "@/lib/data/jobs";
@@ -23,7 +24,7 @@ const priorityVariant: Record<string, "default" | "secondary" | "destructive" | 
 };
 
 export function JobsTable({ jobs, timezone }: { jobs: JobListItem[]; timezone: string }) {
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = todayKeyInTZ(timezone);
 
   if (jobs.length === 0) {
     return (
@@ -73,7 +74,7 @@ export function JobsTable({ jobs, timezone }: { jobs: JobListItem[]; timezone: s
                 <TableCell>
                   <span className={isOverdue ? "flex items-center gap-1 text-destructive" : ""}>
                     {isOverdue && <AlertTriangle className="size-3.5" />}
-                    {job.targetDate ? formatDate(`${job.targetDate}T00:00:00Z`, timezone) : "-"}
+                    {job.targetDate ? formatDateOnly(job.targetDate) : "-"}
                   </span>
                 </TableCell>
                 <TableCell>
