@@ -188,6 +188,64 @@ export type Database = {
           },
         ]
       }
+      job_materials: {
+        Row: {
+          actual_quantity: number | null
+          created_at: string
+          estimated_quantity: number
+          id: string
+          job_id: string
+          material_id: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          actual_quantity?: number | null
+          created_at?: string
+          estimated_quantity: number
+          id?: string
+          job_id: string
+          material_id: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          actual_quantity?: number | null
+          created_at?: string
+          estimated_quantity?: number
+          id?: string
+          job_id?: string
+          material_id?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_materials_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_sessions: {
         Row: {
           actual_end_at: string | null
@@ -496,6 +554,143 @@ export type Database = {
           },
         ]
       }
+      material_categories: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_units: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_units_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      materials: {
+        Row: {
+          active: boolean
+          category_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          minimum_stock: number
+          name: string
+          organization_id: string
+          sku: string | null
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          minimum_stock?: number
+          name: string
+          organization_id: string
+          sku?: string | null
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          minimum_stock?: number
+          name?: string
+          organization_id?: string
+          sku?: string | null
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materials_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "material_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materials_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "material_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           active: boolean
@@ -582,16 +777,423 @@ export type Database = {
         }
         Relationships: []
       }
+      quote_counters: {
+        Row: {
+          next_number: number
+          organization_id: string
+        }
+        Insert: {
+          next_number?: number
+          organization_id: string
+        }
+        Update: {
+          next_number?: number
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_items: {
+        Row: {
+          cost_unit_price: number | null
+          created_at: string
+          description: string
+          id: string
+          item_type: string
+          material_id: string | null
+          organization_id: string
+          quantity: number
+          quote_id: string
+          sale_unit_price: number
+          sort_order: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          cost_unit_price?: number | null
+          created_at?: string
+          description: string
+          id?: string
+          item_type: string
+          material_id?: string | null
+          organization_id: string
+          quantity: number
+          quote_id: string
+          sale_unit_price: number
+          sort_order?: number
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          cost_unit_price?: number | null
+          created_at?: string
+          description?: string
+          id?: string
+          item_type?: string
+          material_id?: string | null
+          organization_id?: string
+          quantity?: number
+          quote_id?: string
+          sale_unit_price?: number
+          sort_order?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          accepted_at: string | null
+          client_id: string
+          created_at: string
+          created_by: string | null
+          discount_amount: number
+          id: string
+          issue_date: string
+          job_id: string
+          notes: string | null
+          organization_id: string
+          quote_number: string
+          rejected_at: string | null
+          sent_at: string | null
+          status: string
+          subtotal: number
+          terms: string | null
+          total: number
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          discount_amount?: number
+          id?: string
+          issue_date?: string
+          job_id: string
+          notes?: string | null
+          organization_id: string
+          quote_number: string
+          rejected_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          terms?: string | null
+          total?: number
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          discount_amount?: number
+          id?: string
+          issue_date?: string
+          job_id?: string
+          notes?: string | null
+          organization_id?: string
+          quote_number?: string
+          rejected_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          terms?: string | null
+          total?: number
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          job_id: string | null
+          material_id: string
+          movement_type: string
+          notes: string | null
+          organization_id: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id?: string | null
+          material_id: string
+          movement_type: string
+          notes?: string | null
+          organization_id: string
+          quantity: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id?: string | null
+          material_id?: string
+          movement_type?: string
+          notes?: string | null
+          organization_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_material_prices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          currency: string
+          id: string
+          material_id: string
+          notes: string | null
+          organization_id: string
+          price: number
+          recorded_at: string
+          supplier_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          material_id: string
+          notes?: string | null
+          organization_id: string
+          price: number
+          recorded_at?: string
+          supplier_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          material_id?: string
+          notes?: string | null
+          organization_id?: string
+          price?: number
+          recorded_at?: string
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_material_prices_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_material_prices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_material_prices_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          active: boolean
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          organization_id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      material_latest_prices: {
+        Row: {
+          currency: string | null
+          material_id: string | null
+          organization_id: string | null
+          price: number | null
+          recorded_at: string | null
+          supplier_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_material_prices_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_material_prices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_material_prices_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_stock_balances: {
+        Row: {
+          current_stock: number | null
+          material_id: string | null
+          organization_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       bootstrap_organization: { Args: { org_name: string }; Returns: string }
+      create_quote: {
+        Args: { p_client_id: string; p_job_id: string }
+        Returns: string
+      }
       generate_org_slug: { Args: { base_name: string }; Returns: string }
       is_org_admin: { Args: { org_id: string }; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_operator: { Args: { org_id: string }; Returns: boolean }
+      recalc_quote_totals: { Args: { p_quote_id: string }; Returns: undefined }
       shares_organization_with: {
         Args: { target_user_id: string }
         Returns: boolean
