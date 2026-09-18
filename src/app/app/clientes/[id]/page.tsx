@@ -9,9 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClientDetail } from "@/lib/data/clients";
 import { requireCurrentOrg } from "@/lib/data/current-org";
+import { getClientFinancialSummary, getClientJobsFinancialDetail } from "@/lib/data/payments";
 import { buildWhatsAppLink } from "@/lib/format/phone";
-import { formatDate } from "@/lib/format/dates";
+import { formatDateOnly } from "@/lib/format/dates";
+import { formatMoney } from "@/lib/format/money";
 import { jobPriorityLabel } from "@/lib/validations/job";
+import { paymentStatusLabels } from "@/lib/validations/payment";
 
 export default async function ClientDetailPage({
   params,
@@ -20,12 +23,17 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const { organization } = await requireCurrentOrg();
-  const detail = await getClientDetail(organization.id, id);
+  const [detail, financialSummary, jobsFinancial] = await Promise.all([
+    getClientDetail(organization.id, id),
+    getClientFinancialSummary(organization.id, id),
+    getClientJobsFinancialDetail(organization.id, id),
+  ]);
 
   if (!detail) notFound();
 
   const { client, addresses, jobs } = detail;
   const waLink = buildWhatsAppLink(client.phone);
+  const financialByJob = new Map(jobsFinancial.map((f) => [f.jobId, f]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,6 +111,36 @@ export default async function ClientDetailPage({
 
       <Card>
         <CardHeader>
+          <CardTitle>Resumen financiero</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 sm:gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Contratado</p>
+              <p className="text-lg font-semibold sm:text-xl">{formatMoney(financialSummary.contractedAmount, organization.currency)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Cobrado</p>
+              <p className="text-lg font-semibold sm:text-xl">{formatMoney(financialSummary.collectedAmount, organization.currency)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Pendiente</p>
+              <p className={`text-lg font-semibold sm:text-xl ${financialSummary.outstandingAmount > 0 ? "text-warning" : "text-success"}`}>
+                {formatMoney(financialSummary.outstandingAmount, organization.currency)}
+              </p>
+            </div>
+          </div>
+          {financialSummary.uncontractedCollections > 0 && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Cobros sin cotización aceptada:{" "}
+              {formatMoney(financialSummary.uncontractedCollections, organization.currency)}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Trabajos</CardTitle>
         </CardHeader>
         <CardContent>
@@ -110,21 +148,30 @@ export default async function ClientDetailPage({
             <p className="text-sm text-muted-foreground">Este cliente todavía no tiene trabajos.</p>
           ) : (
             <div className="flex flex-col divide-y">
-              {jobs.map((job) => (
-                <Link
-                  key={job.id}
-                  href={`/app/trabajos/${job.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0 hover:bg-muted/40"
-                >
-                  <div>
-                    <p className="font-medium">{job.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {job.statusName} · {jobPriorityLabel(job.priority)}
-                      {job.target_date ? ` · ${formatDate(job.target_date)}` : ""}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+              {jobs.map((job) => {
+                const fin = financialByJob.get(job.id);
+                return (
+                  <Link
+                    key={job.id}
+                    href={`/app/trabajos/${job.id}`}
+                    className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0 hover:bg-muted/40"
+                  >
+                    <div>
+                      <p className="font-medium">{job.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {job.statusName} · {jobPriorityLabel(job.priority)}
+                        {job.target_date ? ` · ${formatDateOnly(job.target_date)}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {fin?.contractedAmount != null ? (
+                        <p className="font-medium">{formatMoney(fin.contractedAmount, organization.currency)}</p>
+                      ) : null}
+                      <Badge variant="outline">{paymentStatusLabels[fin?.paymentStatus ?? "no_contract"]}</Badge>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </CardContent>

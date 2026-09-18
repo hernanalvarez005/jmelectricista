@@ -1,4 +1,4 @@
-import { AlertTriangle, Boxes, CalendarClock, CalendarDays, Clock, FileText, ListTodo, Wrench } from "lucide-react";
+import { AlertTriangle, Boxes, CalendarClock, CalendarDays, Clock, FileText, ListTodo, Wallet, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { WeeklyLoadBars } from "@/components/weekly-load-bars";
@@ -7,17 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { getJobsWithMissingMaterials } from "@/lib/data/dashboard-materials";
+import { getJobsWithOutstandingBalance, getPaymentsDashboardStats } from "@/lib/data/payments";
 import { getQuoteDashboardStats } from "@/lib/data/quotes";
-import { formatDate } from "@/lib/format/dates";
+import { formatDateOnly } from "@/lib/format/dates";
 import { formatMinutes } from "@/lib/format/duration";
+import { formatMoney } from "@/lib/format/money";
 import { formatQuantity } from "@/lib/format/quantity";
 
 export default async function DashboardPage() {
   const { organization } = await requireCurrentOrg();
-  const [data, jobsWithMissing, quoteStats] = await Promise.all([
+  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance] = await Promise.all([
     getDashboardData(organization.id, organization.timezone),
     getJobsWithMissingMaterials(organization.id),
     getQuoteDashboardStats(organization.id),
+    getPaymentsDashboardStats(organization.id, organization.timezone),
+    getJobsWithOutstandingBalance(organization.id),
   ]);
 
   const stats = [
@@ -41,6 +45,23 @@ export default async function DashboardPage() {
       value: jobsWithMissing.length,
       icon: Boxes,
       alert: jobsWithMissing.length > 0 ? ("warning" as const) : undefined,
+    },
+    {
+      label: "Cobrado este mes",
+      value: formatMoney(paymentsStats.collectedThisMonth, organization.currency),
+      icon: Wallet,
+    },
+    {
+      label: "Saldo pendiente",
+      value: formatMoney(paymentsStats.outstandingTotal, organization.currency),
+      icon: Wallet,
+      alert: paymentsStats.outstandingTotal > 0 ? ("warning" as const) : undefined,
+    },
+    {
+      label: "Finalizados con saldo",
+      value: paymentsStats.closedJobsWithBalanceCount,
+      icon: AlertTriangle,
+      alert: paymentsStats.closedJobsWithBalanceCount > 0 ? ("destructive" as const) : undefined,
     },
   ];
 
@@ -142,8 +163,40 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   {job.targetDate && (
-                    <Badge variant="outline">{formatDate(`${job.targetDate}T00:00:00Z`)}</Badge>
+                    <Badge variant="outline">{formatDateOnly(job.targetDate)}</Badge>
                   )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Saldos pendientes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {jobsWithBalance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Ningún trabajo tiene saldo pendiente.</p>
+          ) : (
+            <div className="flex flex-col divide-y">
+              {jobsWithBalance.slice(0, 8).map((job) => (
+                <Link
+                  key={job.jobId}
+                  href={`/app/trabajos/${job.jobId}`}
+                  className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0 hover:bg-muted/40"
+                >
+                  <div>
+                    <p className="font-medium">{job.clientName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {job.jobTitle}
+                      {job.statusIsClosed ? " · Finalizado" : ""}
+                    </p>
+                  </div>
+                  <span className={`font-medium ${job.statusIsClosed ? "text-destructive" : "text-warning"}`}>
+                    {formatMoney(job.outstandingAmount, organization.currency)} pendientes
+                  </span>
                 </Link>
               ))}
             </div>
