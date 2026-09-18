@@ -7,7 +7,11 @@ export type JobMissingMaterials = {
   missingItems: { materialName: string; missing: number; unitSymbol: string }[];
 };
 
-/** Trabajos activos con al menos un material cuyo faltante > 0. */
+/**
+ * Trabajos activos con al menos un material cuyo faltante > 0.
+ * El faltante sale de public.job_material_status (considera el consumo ya
+ * registrado en ese trabajo), no de `estimated_quantity - stock`.
+ */
 export async function getJobsWithMissingMaterials(orgId: string): Promise<JobMissingMaterials[]> {
   const supabase = await createClient();
 
@@ -20,7 +24,7 @@ export async function getJobsWithMissingMaterials(orgId: string): Promise<JobMis
   const { data: rows, error } = await supabase
     .from("job_materials")
     .select(
-      "job_id, material_id, estimated_quantity, material:materials(name, unit:material_units(symbol)), job:jobs(title, target_date, status_id)"
+      "id, job_id, material:materials(name, unit:material_units(symbol)), job:jobs(title, target_date, status_id)"
     )
     .eq("organization_id", orgId);
 
@@ -30,17 +34,16 @@ export async function getJobsWithMissingMaterials(orgId: string): Promise<JobMis
   const activeRows = rows.filter((r) => r.job && !closedStatusIds.has(r.job.status_id));
   if (activeRows.length === 0) return [];
 
-  const materialIds = [...new Set(activeRows.map((r) => r.material_id))];
-  const { data: balances } = await supabase
-    .from("material_stock_balances")
-    .select("material_id, current_stock")
-    .in("material_id", materialIds);
-  const stockByMaterial = new Map((balances ?? []).map((b) => [b.material_id, Number(b.current_stock)]));
+  const jobMaterialIds = activeRows.map((r) => r.id);
+  const { data: statusRows } = await supabase
+    .from("job_material_status")
+    .select("job_material_id, missing_quantity")
+    .in("job_material_id", jobMaterialIds);
+  const missingById = new Map((statusRows ?? []).map((s) => [s.job_material_id, Number(s.missing_quantity)]));
 
   const byJob = new Map<string, JobMissingMaterials>();
   for (const row of activeRows) {
-    const stock = stockByMaterial.get(row.material_id) ?? 0;
-    const missing = Math.max(0, Number(row.estimated_quantity) - stock);
+    const missing = missingById.get(row.id) ?? 0;
     if (missing <= 0) continue;
 
     if (!byJob.has(row.job_id)) {

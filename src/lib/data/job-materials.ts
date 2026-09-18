@@ -7,17 +7,28 @@ export type JobMaterialItem = {
   unitSymbol: string;
   estimatedQuantity: number;
   actualQuantity: number | null;
+  consumedQuantity: number;
+  remainingQuantity: number;
   availableStock: number;
   missing: number;
+  varianceQuantity: number;
   notes: string | null;
 };
 
+/**
+ * "Faltante" y "pendiente" salen siempre de la vista public.job_material_status
+ * (ver esa migración para la fórmula), nunca se recalculan acá con
+ * `estimated_quantity - stock` — eso ignoraría el material ya consumido por
+ * este trabajo. Ver README para la definición de cada campo.
+ */
 export async function getJobMaterials(orgId: string, jobId: string): Promise<JobMaterialItem[]> {
   const supabase = await createClient();
 
   const { data: rows, error } = await supabase
     .from("job_materials")
-    .select("id, material_id, estimated_quantity, actual_quantity, notes, material:materials(name, unit:material_units(symbol))")
+    .select(
+      "id, material_id, actual_quantity, notes, material:materials(name, unit:material_units(symbol))"
+    )
     .eq("organization_id", orgId)
     .eq("job_id", jobId)
     .order("created_at", { ascending: true });
@@ -25,27 +36,31 @@ export async function getJobMaterials(orgId: string, jobId: string): Promise<Job
   if (error) throw error;
   if (!rows || rows.length === 0) return [];
 
-  const materialIds = rows.map((r) => r.material_id);
-  const { data: balances, error: balancesError } = await supabase
-    .from("material_stock_balances")
-    .select("material_id, current_stock")
-    .in("material_id", materialIds);
-  if (balancesError) throw balancesError;
+  const { data: statusRows, error: statusError } = await supabase
+    .from("job_material_status")
+    .select(
+      "job_material_id, estimated_quantity, consumed_quantity, remaining_quantity, current_stock, missing_quantity, variance_quantity"
+    )
+    .eq("organization_id", orgId)
+    .eq("job_id", jobId);
 
-  const stockByMaterial = new Map((balances ?? []).map((b) => [b.material_id, Number(b.current_stock)]));
+  if (statusError) throw statusError;
+  const statusById = new Map((statusRows ?? []).map((s) => [s.job_material_id, s]));
 
   return rows.map((r) => {
-    const availableStock = stockByMaterial.get(r.material_id) ?? 0;
-    const estimatedQuantity = Number(r.estimated_quantity);
+    const status = statusById.get(r.id);
     return {
       id: r.id,
       materialId: r.material_id,
       materialName: r.material?.name ?? "-",
       unitSymbol: r.material?.unit?.symbol ?? "",
-      estimatedQuantity,
+      estimatedQuantity: Number(status?.estimated_quantity ?? 0),
       actualQuantity: r.actual_quantity != null ? Number(r.actual_quantity) : null,
-      availableStock,
-      missing: Math.max(0, estimatedQuantity - availableStock),
+      consumedQuantity: Number(status?.consumed_quantity ?? 0),
+      remainingQuantity: Number(status?.remaining_quantity ?? 0),
+      availableStock: Number(status?.current_stock ?? 0),
+      missing: Number(status?.missing_quantity ?? 0),
+      varianceQuantity: Number(status?.variance_quantity ?? 0),
       notes: r.notes,
     };
   });

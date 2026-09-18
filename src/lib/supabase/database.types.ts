@@ -1126,6 +1126,43 @@ export type Database = {
       }
     }
     Views: {
+      job_material_status: {
+        Row: {
+          consumed_quantity: number | null
+          current_stock: number | null
+          estimated_quantity: number | null
+          job_id: string | null
+          job_material_id: string | null
+          material_id: string | null
+          missing_quantity: number | null
+          organization_id: string | null
+          remaining_quantity: number | null
+          variance_quantity: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_materials_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_latest_prices: {
         Row: {
           currency: string | null
