@@ -119,10 +119,15 @@ export default async function MaterialDetailPage({
           ) : (
             <div className="flex flex-col divide-y">
               {priceHistory.map((p) => (
-                <div key={p.id} className="flex items-center justify-between py-2 text-sm">
+                <div
+                  key={p.id}
+                  className="flex flex-col gap-1 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                >
                   <span className="font-medium">{p.supplierName}</span>
-                  <span>{formatMoney(Number(p.price), p.currency)}</span>
-                  <span className="text-muted-foreground">{formatDate(p.recorded_at)}</span>
+                  <div className="flex items-center justify-between gap-4 sm:contents">
+                    <span>{formatMoney(Number(p.price), p.currency)}</span>
+                    <span className="text-muted-foreground">{formatDate(p.recorded_at)}</span>
+                  </div>
                 </div>
               ))}
             </div>
