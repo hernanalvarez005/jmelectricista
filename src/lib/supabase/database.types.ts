@@ -234,6 +234,13 @@ export type Database = {
             foreignKeyName: "job_materials_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_financial_status"
             referencedColumns: ["job_id"]
           },
@@ -243,6 +250,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_materials_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
           },
           {
             foreignKeyName: "job_materials_material_id_fkey"
@@ -316,6 +330,13 @@ export type Database = {
           voided_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "job_payments_job_id_fkey"
             columns: ["job_id"]
@@ -411,6 +432,13 @@ export type Database = {
             foreignKeyName: "job_sessions_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_sessions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_financial_status"
             referencedColumns: ["job_id"]
           },
@@ -465,6 +493,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "job_statuses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_status_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "job_status_history_job_id_fkey"
@@ -720,6 +755,55 @@ export type Database = {
           },
         ]
       }
+      material_inventory_valuation: {
+        Row: {
+          initialized_at: string
+          inventory_value: number
+          material_id: string
+          organization_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          initialized_at?: string
+          inventory_value: number
+          material_id: string
+          organization_id: string
+          quantity: number
+          updated_at?: string
+        }
+        Update: {
+          initialized_at?: string
+          inventory_value?: number
+          material_id?: string
+          organization_id?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_inventory_valuation_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: true
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "material_inventory_valuation_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: true
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_inventory_valuation_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_units: {
         Row: {
           active: boolean
@@ -751,6 +835,67 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "material_units_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_valuation_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_type: string
+          id: string
+          material_id: string
+          notes: string | null
+          organization_id: string
+          quantity: number
+          total_value: number
+          unit_cost: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_type: string
+          id?: string
+          material_id: string
+          notes?: string | null
+          organization_id: string
+          quantity: number
+          total_value: number
+          unit_cost: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_type?: string
+          id?: string
+          material_id?: string
+          notes?: string | null
+          organization_id?: string
+          quantity?: number
+          total_value?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_valuation_events_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "material_valuation_events_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_valuation_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -996,6 +1141,199 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_counters: {
+        Row: {
+          next_number: number
+          organization_id: string
+        }
+        Insert: {
+          next_number?: number
+          organization_id: string
+        }
+        Update: {
+          next_number?: number
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_items: {
+        Row: {
+          created_at: string
+          id: string
+          material_id: string
+          notes: string | null
+          organization_id: string
+          purchase_id: string
+          quantity: number
+          sort_order: number
+          subtotal: number
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          material_id: string
+          notes?: string | null
+          organization_id: string
+          purchase_id: string
+          quantity: number
+          sort_order?: number
+          subtotal?: number
+          unit_cost: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          material_id?: string
+          notes?: string | null
+          organization_id?: string
+          purchase_id?: string
+          quantity?: number
+          sort_order?: number
+          subtotal?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "purchase_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          cancelled_at: string | null
+          client_request_id: string | null
+          created_at: string
+          created_by: string | null
+          document_path: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          purchase_date: string
+          purchase_number: string
+          received_at: string | null
+          received_by: string | null
+          source_job_id: string | null
+          status: string
+          subtotal: number
+          supplier_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_path?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          purchase_date: string
+          purchase_number: string
+          received_at?: string | null
+          received_by?: string | null
+          source_job_id?: string | null
+          status?: string
+          subtotal?: number
+          supplier_id: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_path?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          purchase_date?: string
+          purchase_number?: string
+          received_at?: string | null
+          received_by?: string | null
+          source_job_id?: string | null
+          status?: string
+          subtotal?: number
+          supplier_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_source_job_id_fkey"
+            columns: ["source_job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "purchases_source_job_id_fkey"
+            columns: ["source_job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "purchases_source_job_id_fkey"
+            columns: ["source_job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_counters: {
         Row: {
           next_number: number
@@ -1066,6 +1404,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "quote_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
           {
             foreignKeyName: "quote_items_material_id_fkey"
             columns: ["material_id"]
@@ -1179,6 +1524,13 @@ export type Database = {
             foreignKeyName: "quotes_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_financial_status"
             referencedColumns: ["job_id"]
           },
@@ -1208,7 +1560,12 @@ export type Database = {
           movement_type: string
           notes: string | null
           organization_id: string
+          purchase_id: string | null
+          purchase_item_id: string | null
           quantity: number
+          reversal_of_movement_id: string | null
+          total_cost: number | null
+          unit_cost: number | null
         }
         Insert: {
           created_at?: string
@@ -1219,7 +1576,12 @@ export type Database = {
           movement_type: string
           notes?: string | null
           organization_id: string
+          purchase_id?: string | null
+          purchase_item_id?: string | null
           quantity: number
+          reversal_of_movement_id?: string | null
+          total_cost?: number | null
+          unit_cost?: number | null
         }
         Update: {
           created_at?: string
@@ -1230,9 +1592,21 @@ export type Database = {
           movement_type?: string
           notes?: string | null
           organization_id?: string
+          purchase_id?: string | null
+          purchase_item_id?: string | null
           quantity?: number
+          reversal_of_movement_id?: string | null
+          total_cost?: number | null
+          unit_cost?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "stock_movements_job_id_fkey"
             columns: ["job_id"]
@@ -1251,6 +1625,13 @@ export type Database = {
             foreignKeyName: "stock_movements_material_id_fkey"
             columns: ["material_id"]
             isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
             referencedRelation: "materials"
             referencedColumns: ["id"]
           },
@@ -1259,6 +1640,27 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_purchase_item_id_fkey"
+            columns: ["purchase_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_reversal_of_movement_id_fkey"
+            columns: ["reversal_of_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
             referencedColumns: ["id"]
           },
         ]
@@ -1301,6 +1703,13 @@ export type Database = {
           supplier_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "supplier_material_prices_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
           {
             foreignKeyName: "supplier_material_prices_material_id_fkey"
             columns: ["material_id"]
@@ -1392,6 +1801,28 @@ export type Database = {
           },
         ]
       }
+      job_cost_status: {
+        Row: {
+          actual_material_cost: number | null
+          collected_amount: number | null
+          contracted_amount: number | null
+          estimated_material_cost: number | null
+          job_id: string | null
+          material_cost_complete: boolean | null
+          material_cost_variance: number | null
+          organization_id: string | null
+          outstanding_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_financial_status: {
         Row: {
           accepted_quote_id: string | null
@@ -1407,6 +1838,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_material_costs: {
+        Row: {
+          cost_complete: boolean | null
+          job_id: string | null
+          material_id: string | null
+          net_cost: number | null
+          net_quantity: number | null
+          organization_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1432,6 +1917,13 @@ export type Database = {
             foreignKeyName: "job_materials_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_financial_status"
             referencedColumns: ["job_id"]
           },
@@ -1441,6 +1933,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_materials_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
           },
           {
             foreignKeyName: "job_materials_material_id_fkey"
@@ -1472,6 +1971,13 @@ export type Database = {
             foreignKeyName: "supplier_material_prices_material_id_fkey"
             columns: ["material_id"]
             isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "supplier_material_prices_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
             referencedRelation: "materials"
             referencedColumns: ["id"]
           },
@@ -1491,6 +1997,46 @@ export type Database = {
           },
         ]
       }
+      material_latest_purchases: {
+        Row: {
+          material_id: string | null
+          organization_id: string | null
+          purchase_date: string | null
+          purchase_number: string | null
+          supplier_id: string | null
+          unit_cost: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
+          {
+            foreignKeyName: "purchase_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_stock_balances: {
         Row: {
           current_stock: number | null
@@ -1498,6 +2044,13 @@ export type Database = {
           organization_id: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_movements_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "material_valuation"
+            referencedColumns: ["material_id"]
+          },
           {
             foreignKeyName: "stock_movements_material_id_fkey"
             columns: ["material_id"]
@@ -1514,9 +2067,30 @@ export type Database = {
           },
         ]
       }
+      material_valuation: {
+        Row: {
+          average_cost: number | null
+          current_stock: number | null
+          inventory_value: number | null
+          material_id: string | null
+          needs_initialization: boolean | null
+          organization_id: string | null
+          valuation_initialized: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       bootstrap_organization: { Args: { org_name: string }; Returns: string }
+      cancel_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
       create_job_session: {
         Args: {
           p_assigned_member_id?: string
@@ -1528,15 +2102,34 @@ export type Database = {
         }
         Returns: string
       }
+      create_purchase: {
+        Args: {
+          p_client_request_id: string
+          p_notes?: string
+          p_purchase_date: string
+          p_source_job_id?: string
+          p_supplier_id: string
+        }
+        Returns: string
+      }
       create_quote: {
         Args: { p_client_id: string; p_job_id: string }
         Returns: string
       }
       generate_org_slug: { Args: { base_name: string }; Returns: string }
+      initialize_material_valuation: {
+        Args: { p_material_id: string; p_notes?: string; p_unit_cost: number }
+        Returns: undefined
+      }
       is_org_admin: { Args: { org_id: string }; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_operator: { Args: { org_id: string }; Returns: boolean }
+      recalc_purchase_totals: {
+        Args: { p_purchase_id: string }
+        Returns: undefined
+      }
       recalc_quote_totals: { Args: { p_quote_id: string }; Returns: undefined }
+      receive_purchase: { Args: { p_purchase_id: string }; Returns: string }
       register_job_material_consumption: {
         Args: { p_actual_quantity: number; p_job_material_id: string }
         Returns: undefined
