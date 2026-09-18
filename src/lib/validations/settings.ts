@@ -3,7 +3,7 @@ import { z } from "zod";
 export const jobTypeSchema = z.object({
   name: z.string().trim().min(2, "Ingresá un nombre").max(120),
   description: z.string().trim().max(2000).optional().or(z.literal("")),
-  defaultEstimatedMinutes: z.coerce.number().int().min(0).max(100000).optional(),
+  defaultEstimatedMinutes: z.string().optional().or(z.literal("")),
   active: z.boolean(),
 });
 
