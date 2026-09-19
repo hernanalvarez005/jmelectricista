@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import Link from "next/link";
 
 import { EconomicsSummary } from "@/components/jobs/economics-summary";
@@ -6,7 +5,7 @@ import { ExpensesList } from "@/components/jobs/expenses-list";
 import { LaborBreakdown } from "@/components/jobs/labor-breakdown";
 import { MaterialCostCard } from "@/components/jobs/material-cost-card";
 import { RegisterExpenseDialog } from "@/components/jobs/register-expense-dialog";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { JobCostStatus } from "@/lib/data/job-costs";
 import type { JobEconomics, LaborSessionItem } from "@/lib/data/job-economics";
@@ -67,9 +66,9 @@ export function JobCostsPanel({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle>Mano de obra</CardTitle>
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/app/configuracion">Tarifas</Link>
-            </Button>
+            <Link href="/app/configuracion" className={buttonVariants({ size: "sm", variant: "outline" })}>
+              Tarifas
+            </Link>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="grid gap-2 text-sm sm:max-w-md">
@@ -108,16 +107,7 @@ export function JobCostsPanel({
             </p>
           </div>
           {canOperate && (
-            <RegisterExpenseDialog
-              jobId={jobId}
-              timezone={timezone}
-              categories={expenseCategories}
-              trigger={
-                <Button size="sm">
-                  <Plus /> Registrar gasto
-                </Button>
-              }
-            />
+            <RegisterExpenseDialog jobId={jobId} timezone={timezone} categories={expenseCategories} />
           )}
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -20,12 +21,10 @@ export function RegisterExpenseDialog({
   jobId,
   timezone,
   categories,
-  trigger,
 }: {
   jobId: string;
   timezone: string;
   categories: Tables<"job_expense_categories">[];
-  trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -81,7 +80,13 @@ export function RegisterExpenseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {/* El botón se crea acá, en el cliente: un trigger renderizado por un server component llega como elemento
+          lazy y el Slot de Radix falla de forma intermitente al montarse dentro de una pestaña. */}
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <Plus /> Registrar gasto
+        </Button>
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Registrar gasto directo</DialogTitle>
