@@ -433,13 +433,30 @@ npm run test:rls        # RLS — requiere Supabase local corriendo
 npm run test:all        # los tres, en orden
 ```
 
-Nota: sobre el stack local cargado (Docker compartido con otros proyectos o
-justo después de un `db reset`) PostgREST puede cancelar alguna sentencia por el
-`statement_timeout` de 8s del rol (`canceling statement due to statement timeout`)
-de forma intermitente y en cualquier test. Los helpers reintentan el alta de
-usuarios/organizaciones ante ese error transitorio; si un test falla así, volvé a
-correr la suite (no es un fallo funcional). Tras un `db reset` conviene además
-`docker restart supabase_rest_<proyecto>` para refrescar el schema cache.
+Infraestructura de tests (Vitest con dos *projects*, ver `vitest.config.mts`):
+
+- `unit`: puros, corren en paralelo (`npm run test`, `npm run test:tz`).
+- `integration` (`tests/db` + `tests/rls`): pegan contra Supabase local real, con un
+  solo worker y un archivo a la vez, con `globalSetup` que espera a Auth/PostgREST y
+  deja en el log la carga del host y el tamaño de la VM de Docker.
+- Los usuarios de test se crean por la API admin **sin contraseña** y su access token
+  se acuña localmente con el JWT secret público del stack local (`tests/helpers/supabase.ts`),
+  de modo que RLS/Storage se ejercen con `auth.uid()` reales pero sin pasar por el
+  hash bcrypt de GoTrue (llegaba a tardar 20 s por login en una VM saturada).
+- `retry` de Vitest acotado: solo se reintenta (2 veces) un test que falló con
+  `statement timeout` / `timed out`; cualquier otro error falla al primer intento.
+- Cualquier request de test que tarde más de 3 s se reporta como `[slow-request]`
+  (ajustable con `TEST_SLOW_MS`) para distinguir un stall del entorno de una query lenta.
+- No se tocó ningún timeout del producto ni de la base: el `statement_timeout` de 8 s
+  del rol `authenticator` sigue intacto.
+
+Causa raíz de la inestabilidad histórica: la VM de Docker Desktop de desarrollo tiene
+2 CPUs / 1,9 GiB y compartía dos stacks completos de Supabase; con `MemAvailable` de
+~150 MB y presión de memoria (PSI) de 60-98 % los servicios opcionales del otro stack
+(studio, analytics, realtime) se reiniciaban por OOM y cualquier sentencia podía
+demorar más de 8 s. Con la memoria liberada la suite de integración completa dura ~5 s.
+Recomendación: dar a Docker >= 4 CPUs y >= 6 GB, o correr un solo stack a la vez.
+Tras un `db reset`, `docker restart supabase_rest_<proyecto>` refresca el schema cache.
 
 Los tests de `db/` y `rls/` nunca mockean Postgres: crean usuarios y
 organizaciones reales vía `supabase.auth.admin` + `bootstrap_organization`,

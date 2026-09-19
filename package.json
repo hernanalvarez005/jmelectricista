@@ -8,11 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run tests/unit",
-    "test:db": "vitest run tests/db",
-    "test:rls": "vitest run tests/rls",
-    "test:all": "npm run test && npm run test:db && npm run test:rls",
-    "test:tz": "TZ=UTC vitest run tests/unit && TZ=America/Argentina/Buenos_Aires vitest run tests/unit"
+    "test": "vitest run --project unit",
+    "test:db": "vitest run --project integration tests/db",
+    "test:rls": "vitest run --project integration tests/rls",
+    "test:all": "npm run test && npm run test:integration",
+    "test:tz": "TZ=UTC vitest run --project unit && TZ=America/Argentina/Buenos_Aires vitest run --project unit",
+    "test:integration": "vitest run --project integration"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
