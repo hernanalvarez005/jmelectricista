@@ -3,7 +3,6 @@ import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/render
 import { brand } from "@/lib/brand";
 import { formatDateOnly } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
-import type { Tables } from "@/lib/supabase/database.types";
 
 const colors = brand.colors;
 
@@ -60,25 +59,41 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 8.5, color: colors.mutedText, marginBottom: 4 },
 });
 
-export function QuoteDocument({
-  organization,
-  quote,
-  clientName,
-  clientAddress,
-  jobTitle,
-  jobDescription,
-  items,
-  logoAbsolutePath,
-}: {
-  organization: { name: string; currency: string };
-  quote: Tables<"quotes">;
+/**
+ * Datos mínimos para renderizar el PDF. Tanto el PDF interno como el público se arman SOLO con esto:
+ * ningún campo de costos, márgenes ni datos internos puede llegar al documento.
+ */
+export type QuoteDocumentData = {
+  organizationName: string;
+  currency: string;
+  quoteNumber: string;
+  issueDate: string;
+  validUntil: string | null;
   clientName: string;
   clientAddress: string | null;
   jobTitle: string;
   jobDescription: string | null;
-  items: Tables<"quote_items">[];
-  logoAbsolutePath: string;
-}) {
+  items: { key: string; description: string; quantity: number; unit: string; unitPrice: number; subtotal: number }[];
+  subtotal: number;
+  discountAmount: number;
+  total: number;
+  terms: string | null;
+  notes: string | null;
+};
+
+export function QuoteDocument({ data, logoAbsolutePath }: { data: QuoteDocumentData; logoAbsolutePath: string }) {
+  const organization = { name: data.organizationName, currency: data.currency };
+  const quote = {
+    quote_number: data.quoteNumber,
+    issue_date: data.issueDate,
+    valid_until: data.validUntil,
+    subtotal: data.subtotal,
+    discount_amount: data.discountAmount,
+    total: data.total,
+    terms: data.terms,
+    notes: data.notes,
+  };
+  const { clientName, clientAddress, jobTitle, jobDescription, items } = data;
   return (
     <Document title={`${quote.quote_number} - ${clientName}`}>
       <Page size="A4" style={styles.page}>
@@ -118,17 +133,13 @@ export function QuoteDocument({
               <Text style={styles.colSubtotal}>Subtotal</Text>
             </View>
             {items.map((item) => (
-              <View key={item.id} style={styles.tableRow}>
+              <View key={item.key} style={styles.tableRow}>
                 <Text style={styles.colDescription}>{item.description}</Text>
                 <Text style={styles.colQty}>
                   {item.quantity} {item.unit}
                 </Text>
-                <Text style={styles.colPrice}>
-                  {formatMoney(Number(item.sale_unit_price), organization.currency)}
-                </Text>
-                <Text style={styles.colSubtotal}>
-                  {formatMoney(Number(item.quantity) * Number(item.sale_unit_price), organization.currency)}
-                </Text>
+                <Text style={styles.colPrice}>{formatMoney(item.unitPrice, organization.currency)}</Text>
+                <Text style={styles.colSubtotal}>{formatMoney(item.subtotal, organization.currency)}</Text>
               </View>
             ))}
           </View>

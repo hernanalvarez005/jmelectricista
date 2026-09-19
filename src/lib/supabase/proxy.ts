@@ -4,9 +4,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/database.types";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/auth"];
+// Cotización compartida por enlace: sin login (autoriza el token). Solo /cotizacion/<token>[/pdf]; el resto
+// de /cotizacion... (p.ej. /cotizaciones) no es público.
+const PUBLIC_PREFIXES = ["/cotizacion/"];
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+  return PUBLIC_PATHS.some((path) => pathname.startsWith(path)) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
 export async function updateSession(request: NextRequest) {

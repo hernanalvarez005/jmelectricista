@@ -1,7 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import path from "node:path";
 
-import { QuoteDocument } from "@/lib/pdf/quote-document";
+import { QuoteDocument, type QuoteDocumentData } from "@/lib/pdf/quote-document";
 import { createClient } from "@/lib/supabase/server";
 import type { getQuoteDetail } from "@/lib/data/quotes";
 
@@ -12,21 +12,39 @@ export function quotePdfStoragePath(organizationId: string, quoteId: string): st
   return `organizations/${organizationId}/quotes/${quoteId}/cotizacion.pdf`;
 }
 
-async function renderQuotePdfBuffer(
+export async function renderQuotePdfBuffer(data: QuoteDocumentData): Promise<Buffer> {
+  return renderToBuffer(QuoteDocument({ data, logoAbsolutePath: LOGO_PATH }));
+}
+
+function documentDataFromDetail(
   organization: { name: string; currency: string },
   detail: NonNullable<Awaited<ReturnType<typeof getQuoteDetail>>>
-): Promise<Buffer> {
-  const doc = QuoteDocument({
-    organization,
-    quote: detail.quote,
+): QuoteDocumentData {
+  const { quote } = detail;
+  return {
+    organizationName: organization.name,
+    currency: organization.currency,
+    quoteNumber: quote.quote_number,
+    issueDate: quote.issue_date,
+    validUntil: quote.valid_until,
     clientName: detail.clientName,
     clientAddress: detail.clientAddress,
     jobTitle: detail.jobTitle,
     jobDescription: detail.jobDescription,
-    items: detail.items,
-    logoAbsolutePath: LOGO_PATH,
-  });
-  return renderToBuffer(doc);
+    items: detail.items.map((item) => ({
+      key: item.id,
+      description: item.description,
+      quantity: Number(item.quantity),
+      unit: item.unit,
+      unitPrice: Number(item.sale_unit_price),
+      subtotal: Number(item.quantity) * Number(item.sale_unit_price),
+    })),
+    subtotal: Number(quote.subtotal),
+    discountAmount: Number(quote.discount_amount),
+    total: Number(quote.total),
+    terms: quote.terms,
+    notes: quote.notes,
+  };
 }
 
 /**
@@ -49,7 +67,7 @@ export async function getOrCreateQuotePdfSignedUrl(
     if (existing?.signedUrl) return existing.signedUrl;
   }
 
-  const buffer = await renderQuotePdfBuffer(organization, detail);
+  const buffer = await renderQuotePdfBuffer(documentDataFromDetail(organization, detail));
   const { error: uploadError } = await supabase.storage.from(QUOTES_BUCKET).upload(storagePath, buffer, {
     contentType: "application/pdf",
     upsert: true,

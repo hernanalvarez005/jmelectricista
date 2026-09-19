@@ -4,10 +4,15 @@ import { notFound } from "next/navigation";
 import { QuoteDetailsForm } from "@/components/quotes/quote-details-form";
 import { QuoteItemsTable } from "@/components/quotes/quote-items-table";
 import { QuotePdfButton } from "@/components/quotes/quote-pdf-button";
+import { QuoteShareCard } from "@/components/quotes/quote-share-card";
 import { QuoteStatusActions } from "@/components/quotes/quote-status-actions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireCurrentOrg } from "@/lib/data/current-org";
+import { buildPublicQuoteUrl, getAppBaseUrl } from "@/lib/app-url";
+import { canOperate, requireCurrentOrg } from "@/lib/data/current-org";
+import { getActiveQuoteShareLink } from "@/lib/data/quote-share";
+import { formatDateTime } from "@/lib/format/dates";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp/phone";
 import { listMaterialsForQuoteItems } from "@/lib/data/materials";
 import { getQuoteDetail } from "@/lib/data/quotes";
 import { listJobStatusesForSettings } from "@/lib/data/settings";
@@ -28,20 +33,24 @@ export default async function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { organization } = await requireCurrentOrg();
+  const { organization, role } = await requireCurrentOrg();
 
   const detail = await getQuoteDetail(organization.id, id);
   if (!detail) notFound();
 
   const supabase = await createClient();
-  const [materials, jobStatuses, { count: jobMaterialsCount }] = await Promise.all([
+  const [materials, jobStatuses, { count: jobMaterialsCount }, shareLink, { data: quoteClient }] = await Promise.all([
     listMaterialsForQuoteItems(organization.id),
     listJobStatusesForSettings(organization.id),
     supabase
       .from("job_materials")
       .select("id", { count: "exact", head: true })
       .eq("job_id", detail.quote.job_id),
+    getActiveQuoteShareLink(organization.id, detail.quote.id),
+    supabase.from("clients").select("phone").eq("id", detail.quote.client_id).maybeSingle(),
   ]);
+  const phoneState = normalizeWhatsAppPhone(quoteClient?.phone, organization.default_country_code).status;
+  const shareUrl = shareLink ? buildPublicQuoteUrl(await getAppBaseUrl(), shareLink.token) : null;
 
   const isDraft = detail.quote.status === "draft";
 
@@ -72,6 +81,24 @@ export default async function QuoteDetailPage({
           />
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Compartir con el cliente</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QuoteShareCard
+            quoteId={detail.quote.id}
+            isDraft={isDraft}
+            canShare={canOperate(role)}
+            shareUrl={shareUrl}
+            openCount={shareLink?.openCount ?? 0}
+            lastOpenedLabel={shareLink?.lastOpenedAt ? formatDateTime(shareLink.lastOpenedAt, organization.timezone) : null}
+            phoneState={phoneState}
+            clientHref={`/app/clientes/${detail.quote.client_id}`}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -576,3 +576,122 @@ export async function createTypedJob(
   if (error || !data) throw new Error(`No se pudo crear trabajo de test: ${error?.message}`);
   return data.id;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 5.1: cotizaciones compartibles, facturación
+// ---------------------------------------------------------------------------
+/** Marcadores de datos INTERNOS que nunca deben aparecer en la cotización pública. */
+export const INTERNAL_MARKERS = {
+  serviceCostPrice: 77777.77,
+  materialCostPrice: 4321.12,
+  jobNotes: "NOTA-INTERNA-DEL-TRABAJO-XYZ",
+  clientEmail: "cliente-interno@privado.test",
+  clientTaxId: "20-99999999-9",
+  clientNotes: "NOTA-INTERNA-DEL-CLIENTE-XYZ",
+  expenseDescription: "GASTO-INTERNO-ALQUILER-XYZ",
+  supplierName: "PROVEEDOR-INTERNO-XYZ",
+} as const;
+
+/** Cliente con teléfono y datos internos (email, CUIT, notas) para verificar que no se filtran. */
+export async function createClientWithDetails(
+  client: Client,
+  organizationId: string,
+  opts: { name: string; phone?: string | null }
+): Promise<string> {
+  const { data, error } = await client
+    .from("clients")
+    .insert({
+      organization_id: organizationId,
+      name: opts.name,
+      phone: opts.phone ?? null,
+      email: INTERNAL_MARKERS.clientEmail,
+      tax_id: INTERNAL_MARKERS.clientTaxId,
+      notes: INTERNAL_MARKERS.clientNotes,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo crear cliente de test: ${error?.message}`);
+  return data.id;
+}
+
+/**
+ * Cotización con un ítem de servicio y uno de material, ambos con costo interno (cost_unit_price), llevada al
+ * estado pedido. Devuelve id y número.
+ */
+export async function createQuoteWithItems(
+  client: Client,
+  organizationId: string,
+  opts: { jobId: string; clientId: string; status?: "draft" | "sent" | "accepted"; total?: number }
+): Promise<{ quoteId: string; quoteNumber: string }> {
+  const { data: quoteId, error } = await client.rpc("create_quote", { p_job_id: opts.jobId, p_client_id: opts.clientId });
+  if (error || !quoteId) throw new Error(`create_quote falló: ${error?.message}`);
+
+  const unitId = await getSeedUnitId(client, organizationId, "m");
+  const materialId = await createMaterial(client, organizationId, { name: `Cable ${crypto.randomUUID().slice(0, 6)}`, unitId });
+  const total = opts.total ?? 100_000;
+  const items = [
+    {
+      organization_id: organizationId,
+      quote_id: quoteId,
+      item_type: "service" as const,
+      description: "Instalación eléctrica completa",
+      quantity: 1,
+      unit: "trabajo",
+      cost_unit_price: INTERNAL_MARKERS.serviceCostPrice,
+      sale_unit_price: total - 9_999 * 2,
+    },
+    {
+      organization_id: organizationId,
+      quote_id: quoteId,
+      item_type: "material" as const,
+      material_id: materialId,
+      description: "Cable 2,5 mm",
+      quantity: 2,
+      unit: "m",
+      cost_unit_price: INTERNAL_MARKERS.materialCostPrice,
+      sale_unit_price: 9_999,
+    },
+  ];
+  const { error: itemsError } = await client.from("quote_items").insert(items);
+  if (itemsError) throw new Error(`No se pudieron agregar ítems: ${itemsError.message}`);
+
+  const status = opts.status ?? "draft";
+  if (status !== "draft") {
+    const { error: sent } = await client.from("quotes").update({ status: "sent" }).eq("id", quoteId);
+    if (sent) throw new Error(`No se pudo enviar la cotización: ${sent.message}`);
+  }
+  if (status === "accepted") {
+    const { error: accepted } = await client.from("quotes").update({ status: "accepted" }).eq("id", quoteId);
+    if (accepted) throw new Error(`No se pudo aceptar la cotización: ${accepted.message}`);
+  }
+
+  const { data: row } = await client.from("quotes").select("quote_number").eq("id", quoteId).single();
+  return { quoteId: quoteId as string, quoteNumber: row?.quote_number ?? "" };
+}
+
+export async function getOrCreateShareLink(client: Client, quoteId: string) {
+  const { data, error } = await client.rpc("get_or_create_quote_share_link", { p_quote_id: quoteId });
+  if (error || !data) throw new Error(`get_or_create_quote_share_link falló: ${error?.message}`);
+  return data;
+}
+
+export async function markInvoiced(
+  client: Client,
+  jobId: string,
+  opts: { date?: string; number?: string; notes?: string } = {}
+): Promise<void> {
+  const { error } = await client.rpc("mark_job_invoiced", {
+    p_job_id: jobId,
+    p_invoiced_at: opts.date ?? "2026-09-19",
+    p_invoice_number: opts.number,
+    p_notes: opts.notes,
+  });
+  if (error) throw new Error(`mark_job_invoiced falló: ${error.message}`);
+}
+
+type LooseClient = { from: (t: string) => { select: (q: string) => { limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null; error: { message: string; code?: string } | null }> } } };
+
+/** select * ... limit sobre una tabla/vista elegida en runtime (los tipos generados no aceptan uniones de relaciones). */
+export function selectSome(client: unknown, table: string, limit = 5) {
+  return (client as LooseClient).from(table).select("*").limit(limit);
+}
