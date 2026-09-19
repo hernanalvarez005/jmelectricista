@@ -363,3 +363,216 @@ export async function getMovements(client: Client, materialId: string) {
     total_cost: m.total_cost != null ? Number(m.total_cost) : null,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Fase 5: mano de obra, gastos directos, economía y análisis
+// ---------------------------------------------------------------------------
+export const TEST_TIMEZONE = "America/Argentina/Buenos_Aires";
+
+/** organization_members.id de un usuario dentro de una organización. */
+export async function getMemberId(client: Client, organizationId: string, userId: string): Promise<string> {
+  const { data, error } = await client
+    .from("organization_members")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .single();
+  if (error || !data) throw new Error(`No se encontró el miembro: ${error?.message}`);
+  return data.id;
+}
+
+export async function setRate(
+  client: Client,
+  memberId: string,
+  hourlyCost: number,
+  validFrom: string,
+  notes?: string
+): Promise<string> {
+  const { data, error } = await client.rpc("set_member_labor_rate", {
+    p_member_id: memberId,
+    p_hourly_cost: hourlyCost,
+    p_valid_from: validFrom,
+    p_notes: notes,
+  });
+  if (error || !data) throw new Error(`set_member_labor_rate falló: ${error?.message}`);
+  return data as string;
+}
+
+export async function listRates(client: Client, memberId: string) {
+  const { data, error } = await client
+    .from("member_labor_rates")
+    .select("id, hourly_cost, valid_from, valid_to, notes")
+    .eq("organization_member_id", memberId)
+    .order("valid_from", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({ ...r, hourly_cost: Number(r.hourly_cost) }));
+}
+
+/** ISO (UTC) de una fecha+hora de pared en la zona de la organización de test. */
+export function localIso(date: string, time: string): string {
+  // Buenos Aires es UTC-3 todo el año (sin horario de verano).
+  const [h, m] = time.split(":").map(Number);
+  const utc = new Date(`${date}T00:00:00Z`);
+  utc.setUTCHours(h + 3, m, 0, 0);
+  return utc.toISOString();
+}
+
+/**
+ * Crea una sesión programada (RPC, como la app) y, si se indica `actual`, le carga el
+ * tiempo real con un UPDATE directo, igual que el flujo de "completar sesión".
+ */
+export async function createSession(
+  client: Client,
+  jobId: string,
+  opts: {
+    date: string;
+    plannedStart?: string;
+    plannedEnd?: string;
+    memberId?: string;
+    actual?: { start: string; end: string; date?: string };
+    status?: "scheduled" | "completed" | "cancelled";
+  }
+): Promise<string> {
+  const { data, error } = await client.rpc("create_job_session", {
+    p_job_id: jobId,
+    p_planned_start_at: localIso(opts.date, opts.plannedStart ?? "08:00"),
+    p_planned_end_at: localIso(opts.date, opts.plannedEnd ?? "09:00"),
+    p_client_request_id: crypto.randomUUID(),
+    p_assigned_member_id: opts.memberId,
+  });
+  if (error || !data) throw new Error(`create_job_session falló: ${error?.message}`);
+  const sessionId = data as string;
+  if (opts.actual || opts.status) {
+    const patch: { status: "scheduled" | "completed" | "cancelled"; actual_start_at?: string; actual_end_at?: string } = {
+      status: opts.status ?? "completed",
+    };
+    if (opts.actual) {
+      patch.actual_start_at = localIso(opts.actual.date ?? opts.date, opts.actual.start);
+      patch.actual_end_at = localIso(opts.actual.date ?? opts.date, opts.actual.end);
+    }
+    const { error: updateError } = await client.from("job_sessions").update(patch).eq("id", sessionId);
+    if (updateError) throw new Error(`No se pudo completar la sesión de test: ${updateError.message}`);
+  }
+  return sessionId;
+}
+
+export async function updateActualTime(client: Client, sessionId: string, date: string, start: string, end: string) {
+  const { error } = await client
+    .from("job_sessions")
+    .update({ actual_start_at: localIso(date, start), actual_end_at: localIso(date, end) })
+    .eq("id", sessionId);
+  if (error) throw new Error(`No se pudo actualizar el tiempo real: ${error.message}`);
+}
+
+export async function getSessionSnapshot(client: Client, sessionId: string) {
+  const { data, error } = await client
+    .from("job_session_labor_costs")
+    .select("id, hourly_cost_snapshot, labor_rate_id, organization_member_id")
+    .eq("job_session_id", sessionId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { ...data, hourly_cost_snapshot: Number(data.hourly_cost_snapshot) } : null;
+}
+
+export async function getLaborCosts(client: Client, jobId: string) {
+  const { data, error } = await client.from("job_labor_costs").select("*").eq("job_id", jobId).single();
+  if (error || !data) throw new Error(`No se pudo leer job_labor_costs: ${error?.message}`);
+  return {
+    sessions: Number(data.labor_sessions_count),
+    minutes: Number(data.actual_minutes),
+    cost: Number(data.actual_labor_cost),
+    missingTime: Number(data.sessions_missing_time),
+    missingMember: Number(data.sessions_missing_member),
+    missingRate: Number(data.sessions_missing_rate),
+    complete: Boolean(data.labor_cost_complete),
+  };
+}
+
+export async function getEconomics(client: Client, jobId: string) {
+  const { data, error } = await client.from("job_economics_status").select("*").eq("job_id", jobId).single();
+  if (error || !data) throw new Error(`No se pudo leer job_economics_status: ${error?.message}`);
+  const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+  return {
+    isClosed: Boolean(data.job_is_closed),
+    contracted: n(data.contracted_amount),
+    collected: n(data.collected_amount),
+    materialActual: n(data.actual_material_cost),
+    materialComplete: Boolean(data.material_cost_complete),
+    labor: n(data.actual_labor_cost),
+    laborComplete: Boolean(data.labor_cost_complete),
+    expenses: n(data.direct_expense_total),
+    recorded: n(data.recorded_direct_cost),
+    dataComplete: Boolean(data.direct_cost_data_complete),
+    directCost: n(data.actual_direct_cost),
+    contribution: n(data.contribution_amount),
+    contributionPct: n(data.contribution_percentage),
+  };
+}
+
+export async function getExpenseCategoryId(client: Client, organizationId: string, name = "Alquiler"): Promise<string> {
+  const { data, error } = await client
+    .from("job_expense_categories")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("name", name)
+    .single();
+  if (error || !data) throw new Error(`No se encontró la categoría '${name}': ${error?.message}`);
+  return data.id;
+}
+
+export async function registerExpense(
+  client: Client,
+  opts: {
+    jobId: string;
+    categoryId: string;
+    amount: number;
+    date?: string;
+    description?: string;
+    clientRequestId?: string;
+    receiptPath?: string;
+  }
+): Promise<string> {
+  const { data, error } = await client.rpc("register_job_expense", {
+    p_job_id: opts.jobId,
+    p_category_id: opts.categoryId,
+    p_expense_date: opts.date ?? "2026-09-20",
+    p_description: opts.description ?? "Gasto de test",
+    p_amount: opts.amount,
+    p_client_request_id: opts.clientRequestId ?? crypto.randomUUID(),
+    p_receipt_path: opts.receiptPath,
+  });
+  if (error || !data) throw new Error(`register_job_expense falló: ${error?.message}`);
+  return data as string;
+}
+
+export async function getJobTypeId(client: Client, organizationId: string, name: string): Promise<string> {
+  const { data, error } = await client
+    .from("job_types")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("name", name)
+    .single();
+  if (error || !data) throw new Error(`No se encontró el tipo de trabajo '${name}': ${error?.message}`);
+  return data.id;
+}
+
+export async function createTypedJob(
+  client: Client,
+  organizationId: string,
+  opts: { clientId: string; statusId: string; title: string; jobTypeId?: string; estimatedMinutes?: number }
+): Promise<string> {
+  const { data, error } = await client
+    .from("jobs")
+    .insert({
+      organization_id: organizationId,
+      client_id: opts.clientId,
+      status_id: opts.statusId,
+      title: opts.title,
+      job_type_id: opts.jobTypeId,
+      estimated_minutes: opts.estimatedMinutes,
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`No se pudo crear trabajo de test: ${error?.message}`);
+  return data.id;
+}
