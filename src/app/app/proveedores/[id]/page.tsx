@@ -12,7 +12,8 @@ import { getSupplierDetail } from "@/lib/data/suppliers";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { formatDate } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
-import { buildWhatsAppLink } from "@/lib/format/phone";
+import { buildWhatsAppUrl } from "@/lib/whatsapp/messages";
+import { whatsappDigits } from "@/lib/whatsapp/phone";
 
 export default async function SupplierDetailPage({
   params,
@@ -29,7 +30,8 @@ export default async function SupplierDetailPage({
   if (!detail) notFound();
 
   const { supplier, prices } = detail;
-  const waLink = buildWhatsAppLink(supplier.phone);
+  const supplierDigits = whatsappDigits(supplier.phone, organization.default_country_code);
+  const waLink = supplierDigits ? buildWhatsAppUrl(supplierDigits) : null;
   const quotedMaterials = new Set(prices.map((p) => p.material_id)).size;
 
   return (

@@ -22,8 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { buildWhatsAppLink } from "@/lib/format/phone";
-import { buildPriceRequestMessage } from "@/lib/format/whatsapp-message";
+import { buildPriceRequestMessage, buildWhatsAppUrl } from "@/lib/whatsapp/messages";
 import type { JobMaterialItem } from "@/lib/data/job-materials";
 
 type Scope = "missing" | "all" | "manual";
@@ -34,7 +33,7 @@ export function RequestPricesDialog({
   trigger,
 }: {
   materials: JobMaterialItem[];
-  suppliers: { id: string; name: string; phone: string | null }[];
+  suppliers: { id: string; name: string; phone: string | null; whatsappDigits: string | null }[];
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -62,7 +61,7 @@ export function RequestPricesDialog({
   );
 
   const supplier = suppliers.find((s) => s.id === supplierId);
-  const waLink = buildWhatsAppLink(supplier?.phone);
+  const waLink = supplier?.whatsappDigits ? buildWhatsAppUrl(supplier.whatsappDigits, message) : null;
 
   return (
     <Dialog
@@ -156,7 +155,7 @@ export function RequestPricesDialog({
           {waLink && (
             <Button type="button" asChild>
               <a
-                href={`${waLink}?text=${encodeURIComponent(message)}`}
+                href={waLink}
                 target="_blank"
                 rel="noopener noreferrer"
               >

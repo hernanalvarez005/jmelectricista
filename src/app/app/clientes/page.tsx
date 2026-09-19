@@ -5,6 +5,7 @@ import { ClientsTable } from "@/components/clients/clients-table";
 import { Button } from "@/components/ui/button";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { listClients } from "@/lib/data/clients";
+import { whatsappDigits } from "@/lib/whatsapp/phone";
 
 export default async function ClientesPage() {
   const { organization } = await requireCurrentOrg();
@@ -27,7 +28,9 @@ export default async function ClientesPage() {
           }
         />
       </div>
-      <ClientsTable clients={clients} />
+      <ClientsTable
+        clients={clients.map((c) => ({ ...c, whatsappDigits: whatsappDigits(c.phone, organization.default_country_code) }))}
+      />
     </div>
   );
 }

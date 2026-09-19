@@ -43,6 +43,11 @@ export const organizationSettingsSchema = z.object({
   name: z.string().trim().min(2, "Ingresá el nombre del negocio").max(120),
   timezone: z.string().trim().min(1),
   currency: z.string().trim().length(3, "Usá un código de moneda ISO (ej. ARS)"),
+  defaultCountryCode: z
+    .string()
+    .trim()
+    .length(2, "Usá un código de país de 2 letras (ej. AR)")
+    .regex(/^[A-Za-z]{2}$/, "Usá un código de país de 2 letras (ej. AR)"),
 });
 
 export type OrganizationSettingsInput = z.infer<typeof organizationSettingsSchema>;

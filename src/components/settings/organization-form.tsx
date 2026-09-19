@@ -30,6 +30,7 @@ export function OrganizationForm({ organization }: { organization: Tables<"organ
       name: organization.name,
       timezone: organization.timezone,
       currency: organization.currency,
+      defaultCountryCode: organization.default_country_code,
     },
   });
 
@@ -67,6 +68,14 @@ export function OrganizationForm({ organization }: { organization: Tables<"organ
             {errors.currency && (
               <p className="text-sm text-destructive">{errors.currency.message}</p>
             )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="defaultCountryCode">País para teléfonos (código ISO)</Label>
+            <Input id="defaultCountryCode" maxLength={2} className="uppercase" {...register("defaultCountryCode")} />
+            <p className="text-xs text-muted-foreground">
+              Se usa para interpretar los teléfonos sin código de país al armar enlaces de WhatsApp (por ejemplo AR, UY, CL).
+            </p>
+            {errors.defaultCountryCode && <p className="text-sm text-destructive">{errors.defaultCountryCode.message}</p>}
           </div>
           {serverError && <p className="text-sm text-destructive">{serverError}</p>}
         </CardContent>

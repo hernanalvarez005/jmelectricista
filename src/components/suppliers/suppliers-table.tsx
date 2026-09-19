@@ -13,10 +13,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format/dates";
-import { buildWhatsAppLink } from "@/lib/format/phone";
+import { buildWhatsAppUrl } from "@/lib/whatsapp/messages";
 import type { SupplierListItem } from "@/lib/data/suppliers";
 
-export function SuppliersTable({ suppliers, timezone }: { suppliers: SupplierListItem[]; timezone: string }) {
+export function SuppliersTable({ suppliers, timezone }: { suppliers: (SupplierListItem & { whatsappDigits: string | null })[]; timezone: string }) {
   if (suppliers.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -29,7 +29,7 @@ export function SuppliersTable({ suppliers, timezone }: { suppliers: SupplierLis
     <>
       <div className="flex flex-col gap-3 sm:hidden">
         {suppliers.map((s) => {
-          const waLink = buildWhatsAppLink(s.phone);
+          const waLink = s.whatsappDigits ? buildWhatsAppUrl(s.whatsappDigits) : null;
           return (
             <div key={s.id} className="rounded-lg border bg-card p-4">
               <div className="flex items-start justify-between gap-2">
@@ -78,7 +78,7 @@ export function SuppliersTable({ suppliers, timezone }: { suppliers: SupplierLis
           </TableHeader>
           <TableBody>
             {suppliers.map((s) => {
-              const waLink = buildWhatsAppLink(s.phone);
+              const waLink = s.whatsappDigits ? buildWhatsAppUrl(s.whatsappDigits) : null;
               return (
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">

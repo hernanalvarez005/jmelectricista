@@ -195,6 +195,184 @@ export type Database = {
           },
         ]
       }
+      job_billing: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_number: string | null
+          invoiced_at: string | null
+          job_id: string
+          marked_by: string | null
+          notes: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          invoiced_at?: string | null
+          job_id: string
+          marked_by?: string | null
+          notes?: string | null
+          organization_id: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          invoiced_at?: string | null
+          job_id?: string
+          marked_by?: string | null
+          notes?: string | null
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_billing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_economics_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_labor_costs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_billing_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_billing_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          from_status: string | null
+          id: string
+          invoice_number: string | null
+          invoiced_at: string | null
+          job_id: string
+          notes: string | null
+          organization_id: string
+          to_status: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          from_status?: string | null
+          id?: string
+          invoice_number?: string | null
+          invoiced_at?: string | null
+          job_id: string
+          notes?: string | null
+          organization_id: string
+          to_status: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          from_status?: string | null
+          id?: string
+          invoice_number?: string | null
+          invoiced_at?: string | null
+          job_id?: string
+          notes?: string | null
+          organization_id?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_billing_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_economics_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_labor_costs"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_billing_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_billing_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_expense_categories: {
         Row: {
           active: boolean
@@ -294,6 +472,13 @@ export type Database = {
             foreignKeyName: "job_expenses_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_cost_status"
             referencedColumns: ["job_id"]
           },
@@ -369,6 +554,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "job_materials_job_id_fkey"
             columns: ["job_id"]
@@ -483,6 +675,13 @@ export type Database = {
           voided_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "job_payments_job_id_fkey"
             columns: ["job_id"]
@@ -664,6 +863,13 @@ export type Database = {
             foreignKeyName: "job_sessions_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_sessions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_cost_status"
             referencedColumns: ["job_id"]
           },
@@ -739,6 +945,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "job_statuses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_status_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "job_status_history_job_id_fkey"
@@ -1320,6 +1533,7 @@ export type Database = {
         Row: {
           created_at: string
           currency: string
+          default_country_code: string
           id: string
           name: string
           slug: string
@@ -1329,6 +1543,7 @@ export type Database = {
         Insert: {
           created_at?: string
           currency?: string
+          default_country_code?: string
           id?: string
           name: string
           slug: string
@@ -1338,6 +1553,7 @@ export type Database = {
         Update: {
           created_at?: string
           currency?: string
+          default_country_code?: string
           id?: string
           name?: string
           slug?: string
@@ -1622,6 +1838,13 @@ export type Database = {
             foreignKeyName: "purchases_source_job_id_fkey"
             columns: ["source_job_id"]
             isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "purchases_source_job_id_fkey"
+            columns: ["source_job_id"]
+            isOneToOne: false
             referencedRelation: "job_cost_status"
             referencedColumns: ["job_id"]
           },
@@ -1769,6 +1992,67 @@ export type Database = {
           },
         ]
       }
+      quote_share_links: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          last_opened_at: string | null
+          open_count: number
+          organization_id: string
+          quote_id: string
+          revoked_at: string | null
+          token: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_opened_at?: string | null
+          open_count?: number
+          organization_id: string
+          quote_id: string
+          revoked_at?: string | null
+          token: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_opened_at?: string | null
+          open_count?: number
+          organization_id?: string
+          quote_id?: string
+          revoked_at?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_share_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_share_links_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "job_financial_status"
+            referencedColumns: ["accepted_quote_id"]
+          },
+          {
+            foreignKeyName: "quote_share_links_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quotes: {
         Row: {
           accepted_at: string | null
@@ -1847,6 +2131,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "quotes_job_id_fkey"
@@ -1942,6 +2233,13 @@ export type Database = {
           unit_cost?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "stock_movements_job_id_fkey"
             columns: ["job_id"]
@@ -2138,6 +2436,22 @@ export type Database = {
       }
     }
     Views: {
+      billing_pending_summary: {
+        Row: {
+          billing_pending_count: number | null
+          organization_id: string | null
+          paid_and_billing_pending_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_financial_summary: {
         Row: {
           client_id: string | null
@@ -2150,6 +2464,26 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_billing_status: {
+        Row: {
+          billing_notes: string | null
+          billing_status: string | null
+          invoice_number: string | null
+          invoiced_at: string | null
+          is_billable: boolean | null
+          job_id: string | null
+          organization_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2273,6 +2607,13 @@ export type Database = {
             foreignKeyName: "stock_movements_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "job_cost_status"
             referencedColumns: ["job_id"]
           },
@@ -2341,6 +2682,13 @@ export type Database = {
           variance_quantity: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_materials_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_billing_status"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "job_materials_job_id_fkey"
             columns: ["job_id"]
@@ -2648,6 +2996,29 @@ export type Database = {
         Returns: undefined
       }
       generate_org_slug: { Args: { base_name: string }; Returns: string }
+      generate_share_token: { Args: never; Returns: string }
+      get_or_create_quote_share_link: {
+        Args: { p_quote_id: string }
+        Returns: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          last_opened_at: string | null
+          open_count: number
+          organization_id: string
+          quote_id: string
+          revoked_at: string | null
+          token: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "quote_share_links"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_public_quote: { Args: { p_token: string }; Returns: Json }
       initialize_material_valuation: {
         Args: { p_material_id: string; p_notes?: string; p_unit_cost: number }
         Returns: undefined
@@ -2655,6 +3026,15 @@ export type Database = {
       is_org_admin: { Args: { org_id: string }; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
       is_org_operator: { Args: { org_id: string }; Returns: boolean }
+      mark_job_invoiced: {
+        Args: {
+          p_invoice_number?: string
+          p_invoiced_at: string
+          p_job_id: string
+          p_notes?: string
+        }
+        Returns: undefined
+      }
       reassign_session_member: {
         Args: { p_member_id: string; p_session_id: string }
         Returns: string
@@ -2665,6 +3045,7 @@ export type Database = {
       }
       recalc_quote_totals: { Args: { p_quote_id: string }; Returns: undefined }
       receive_purchase: { Args: { p_purchase_id: string }; Returns: string }
+      record_quote_share_open: { Args: { p_token: string }; Returns: boolean }
       register_job_expense: {
         Args: {
           p_amount: number
@@ -2701,6 +3082,14 @@ export type Database = {
           hourly_cost: number
           rate_id: string
         }[]
+      }
+      revert_job_billing: {
+        Args: { p_job_id: string; p_notes?: string }
+        Returns: undefined
+      }
+      revoke_quote_share_link: {
+        Args: { p_quote_id: string }
+        Returns: boolean
       }
       set_member_labor_rate: {
         Args: {

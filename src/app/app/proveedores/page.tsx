@@ -5,6 +5,7 @@ import { SuppliersTable } from "@/components/suppliers/suppliers-table";
 import { Button } from "@/components/ui/button";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { listSuppliers } from "@/lib/data/suppliers";
+import { whatsappDigits } from "@/lib/whatsapp/phone";
 
 export default async function ProveedoresPage() {
   const { organization } = await requireCurrentOrg();
@@ -27,7 +28,10 @@ export default async function ProveedoresPage() {
           }
         />
       </div>
-      <SuppliersTable suppliers={suppliers} timezone={organization.timezone} />
+      <SuppliersTable
+        suppliers={suppliers.map((s) => ({ ...s, whatsappDigits: whatsappDigits(s.phone, organization.default_country_code) }))}
+        timezone={organization.timezone}
+      />
     </div>
   );
 }

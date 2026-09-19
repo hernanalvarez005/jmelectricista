@@ -14,10 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { buildWhatsAppLink } from "@/lib/format/phone";
+import { buildWhatsAppUrl } from "@/lib/whatsapp/messages";
 import type { ClientListItem } from "@/lib/data/clients";
 
-export function ClientsTable({ clients }: { clients: ClientListItem[] }) {
+export function ClientsTable({ clients }: { clients: (ClientListItem & { whatsappDigits: string | null })[] }) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -64,7 +64,7 @@ export function ClientsTable({ clients }: { clients: ClientListItem[] }) {
             </TableHeader>
             <TableBody>
               {filtered.map((client) => {
-                const waLink = buildWhatsAppLink(client.phone);
+                const waLink = client.whatsappDigits ? buildWhatsAppUrl(client.whatsappDigits) : null;
                 return (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">

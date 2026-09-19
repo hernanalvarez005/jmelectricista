@@ -51,6 +51,7 @@ export async function updateOrganizationAction(
       name: parsed.data.name,
       timezone: parsed.data.timezone,
       currency: parsed.data.currency.toUpperCase(),
+      default_country_code: parsed.data.defaultCountryCode.toUpperCase(),
     })
     .eq("id", organization.id);
 
