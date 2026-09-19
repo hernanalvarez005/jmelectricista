@@ -5,16 +5,18 @@ const alias = { "@": path.resolve(import.meta.dirname, "./src") };
 
 export default defineConfig({
   resolve: { alias },
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
     projects: [
       {
         // Puros, sin red: pueden correr en paralelo.
         resolve: { alias },
+        oxc: { jsx: { runtime: "automatic" } },
         test: {
           name: "unit",
           environment: "node",
-          include: ["tests/unit/**/*.test.ts"],
+          include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx"],
         },
       },
       {

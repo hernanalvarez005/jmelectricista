@@ -413,6 +413,79 @@ vencimientos, IVA/ARCA, costos indirectos, mano de obra, reservas de stock,
 FIFO/LIFO, OCR e integración bancaria. Cancelar una compra ya recibida tampoco
 está soportado (habría que revertir movimientos valorizados).
 
+## Mano de obra, gastos directos, costo directo y contribución (Fase 5)
+
+Objetivo: responder por trabajo cuánto se vendió, cuánto costó ejecutarlo (materiales + mano de obra +
+gastos directos registrados) y cuánto queda del monto contratado. **No es utilidad ni rentabilidad
+neta**: se muestra siempre como *Contribución antes de costos indirectos e impuestos*.
+
+**Mano de obra**
+- `member_labor_rates`: costo hora interno por miembro **con vigencia** (`valid_from`/`valid_to`), sin
+  superposición (trigger + lock de la fila del miembro; el RPC `set_member_labor_rate` cierra la tarifa
+  abierta el día anterior y rechaza fechas dentro de un período ya cerrado). `hourly_cost = 0` es una tarifa
+  explícita y distinta de "tarifa no configurada" (no hay fila). Solo owner/admin leen o escriben (RPC).
+  Es un costo interno imputable, no un sueldo.
+- `job_session_labor_costs`: **snapshot** de la tarifa por sesión (`job_session_id` único). Lo captura el
+  trigger `job_sessions_capture_labor_cost` (no el frontend) cuando la sesión tiene tiempo real y responsable,
+  con la tarifa vigente en la fecha **local** (zona de la organización) del inicio real. Vive en una tabla
+  aparte y solo la leen owner/admin: worker y viewer pueden leer sesiones pero no costos.
+- `labor_cost = actual_minutes / 60 * hourly_cost_snapshot` (derivado; corregir el tiempo real recalcula con el
+  MISMO snapshot; una tarifa posterior nunca lo reprecifica).
+- Sin tarifa vigente, sin responsable o sin tiempo real -> **costo laboral incompleto** (nunca $0, nunca la
+  tarifa actual/futura). Sesiones históricas: la tarifa histórica no las valoriza sola; hay una acción
+  explícita `backfill_session_labor_costs` ("Asignar costo a N sesiones sin valoración") que nunca toca
+  snapshots existentes.
+- Cambiar el responsable de una sesión con tiempo real o costo está bloqueado por trigger; la corrección es
+  `reassign_session_member` (owner/admin), que descarta el snapshot y busca la tarifa histórica del nuevo
+  responsable. Una sesión sin responsable sí puede asignarse (queda valorizada si hay tarifa).
+- UI: Configuración > Mano de obra (solo owner/admin): tarifa actual, historial, nueva tarifa, valorización.
+
+**Gastos directos** (`job_expense_categories`, `job_expenses`)
+- Categorías configurables (semilla: Traslado, Peaje / estacionamiento, Alquiler, Viáticos, Subcontratación,
+  Otro; también para organizaciones existentes).
+- Gasto inmutable y auditable como un cobro: alta idempotente por `client_request_id` (RPC
+  `register_job_expense`), corrección solo por anulación (`void_job_expense`, owner/admin, motivo obligatorio);
+  los anulados siguen visibles como ANULADO y no suman. Un trigger impide editar o borrar aun con service role.
+- Permisos: worker/owner/admin registran; viewer solo lee; solo owner/admin anulan.
+- Comprobante opcional (JPG/PNG/WEBP/PDF, 8 MB) en el bucket privado `job-expense-receipts`, path
+  `organizations/{org}/jobs/{job}/expenses/{client_request_id}/{archivo}`, URL firmada en
+  `/api/expenses/[id]/receipt`.
+- Solo son los gastos **registrados**: el sistema no puede saber si falta alguno.
+
+**Economía del trabajo** (`job_labor_costs`, `job_economics_status`; solo owner/admin, la condición está en la vista)
+- Fuentes de verdad: materiales = `job_cost_status`; contratado/cobrado = `job_financial_status`; mano de obra =
+  sesiones con tiempo real + snapshot; gastos = `job_expenses` no anulados. No se duplican fórmulas.
+- `actual_direct_cost = materiales + mano de obra + gastos` solo si materiales **y** mano de obra están completos
+  (`direct_cost_data_complete`); `recorded_direct_cost` es lo registrado hasta ahora (parcial).
+- `contribution = contratado - costo directo` (null si no hay cotización aceptada o hay datos incompletos);
+  `% = contribución / contratado` (null si contratado = 0). Se calcula sobre lo **contratado**, no sobre lo
+  cobrado (un sobrecobro no aumenta la contribución). Trabajo abierto -> "Contribución acumulada"; cerrado ->
+  "Contribución del trabajo". Incompleto -> "Contribución no calculable — faltan costos" con el motivo (sesiones
+  sin tarifa/responsable/tiempo, materiales sin valoración).
+- Rendimiento: con RLS el planner estimaba 1 fila (filtros opacos `is_org_member/is_org_admin`) y reevaluaba las
+  vistas compuestas por trabajo (600 trabajos: 1,6 s). La vista usa CTEs `MATERIALIZED` (37 ms); consultar un
+  solo trabajo evalúa la organización una vez (~28 ms con 600 trabajos, crece linealmente).
+- UI: pestaña **Costos** del trabajo (economía, mano de obra por sesión con reasignación, gastos, materiales) y
+  tarjeta "Economía del trabajo" en el Resumen para owner/admin. Worker/viewer no reciben tarifas, snapshots,
+  costo laboral ni contribución (RLS/vistas; probado en DB, Storage y en el navegador).
+
+**Análisis** (`/app/analisis`, descriptivo; sin IA ni juicios)
+- Por tipo de trabajo, solo trabajos **cerrados** con datos suficientes: `job_type_time_performance` (tiempo,
+  visible para todos), `job_type_material_performance` y `job_type_contribution` (costos, solo owner/admin).
+  Desvío ponderado `(SUM(real) - SUM(estimado)) / SUM(estimado)` (no se promedian porcentajes). Siempre se muestra
+  la cantidad de trabajos de la muestra; con menos de 3, "Muestra limitada".
+- Carga real por día de la semana (`weekday_workload`): ventana de 4/8/12 semanas completas que termina ayer;
+  el día es la fecha **local** del inicio real (zona de la organización, no UTC); promedio = horas de ese día de la
+  semana / cantidad de esos días en el período (un día sin trabajo cuenta 0). Se muestra al lado la capacidad
+  configurada **hoy** (no hay historial de horarios). El dashboard suma un único insight (el día con más horas
+  reales promedio) con link al análisis.
+- Migraciones: `20260923000001`..`05`. Tests: `tests/db/{labor-rates,labor-costs,expenses,economics,analysis}.test.ts`,
+  `tests/rls/economics-rls.test.ts`, `tests/unit/{economics,job-costs-panel}.test`.
+
+Fuera de alcance: nómina, sueldos, asistencia, impuestos/IVA, costos fijos o indirectos, amortizaciones,
+contabilidad, cuadrillas (una persona por sesión), reservas de stock, IA y recomendaciones de precio. Costo laboral
+*estimado* (horas estimadas x tarifa) no se implementó: el costo laboral real es `horas reales x costo hora`.
+
 ## Tests
 
 ```
@@ -513,6 +586,10 @@ ficha de proveedor, ficha de material y el editor de cotizaciones.
 anulables, idempotentes, con comprobante), saldos derivados, tab Cobros en el
 trabajo, página `/app/cobros`, resumen financiero en cliente y dashboard,
 tiempo real vs estimado y advertencias de cierre no bloqueantes.
+
+**Fase 5**: costo de mano de obra con tarifas históricas y snapshots por sesión, gastos directos, costo directo
+y contribución por trabajo (antes de costos indirectos e impuestos), análisis descriptivo por tipo de trabajo y
+carga real por día de la semana, y estabilización de la suite de integración.
 
 **Fase 4**: compras a proveedores, entradas de stock valorizadas (costo
 promedio ponderado móvil), stock negativo bloqueado, inicialización auditada de

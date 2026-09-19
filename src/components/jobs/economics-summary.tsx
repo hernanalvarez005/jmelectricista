@@ -31,7 +31,15 @@ export function EconomicsSummary({ economics: e, currency }: { economics: JobEco
         />
         <Line
           label="Costo de mano de obra"
-          value={e.laborCostComplete ? money(e.actualLaborCost) : <span className="text-warning">{money(e.actualLaborCost)} (incompleto)</span>}
+          value={
+            e.laborCostComplete ? (
+              money(e.actualLaborCost)
+            ) : e.actualLaborCost === 0 ? (
+              <span className="text-warning">No configurado</span>
+            ) : (
+              <span className="text-warning">{money(e.actualLaborCost)} (incompleto)</span>
+            )
+          }
         />
         <Line label="Gastos directos registrados" value={money(e.directExpenseTotal)} />
         <div className="border-t pt-1.5">

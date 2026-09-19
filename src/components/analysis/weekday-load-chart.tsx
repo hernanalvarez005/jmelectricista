@@ -43,7 +43,7 @@ export function WeekdayLoadChart({ result }: { result: WeekdayLoadResult }) {
               <div className="relative h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${weekdayLabel(d.weekday)}: ${formatHoursDecimal(d.averageMinutes)} promedio`}>
                 <div className="h-full rounded-full bg-primary" style={{ width: `${(d.averageMinutes / scale) * 100}%` }} />
                 {d.capacityMinutes !== null && d.capacityMinutes > 0 && (
-                  <div className="absolute inset-y-0 w-0.5 bg-accent" style={{ left: `${(d.capacityMinutes / scale) * 100}%` }} title="Capacidad configurada actual" />
+                  <div className="absolute inset-y-0 w-0.5 bg-accent" style={{ left: `${Math.min(99, (d.capacityMinutes / scale) * 100)}%` }} title="Capacidad configurada actual" />
                 )}
               </div>
               {d.capacityMinutes !== null && (

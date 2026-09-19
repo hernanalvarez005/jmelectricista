@@ -82,6 +82,8 @@ export function JobCostsPanel({
                 <span className="font-medium">
                   {economics.laborCostComplete ? (
                     formatMoney(economics.actualLaborCost, currency)
+                  ) : economics.actualLaborCost === 0 ? (
+                    <span className="text-warning">No configurado</span>
                   ) : (
                     <span className="text-warning">{formatMoney(economics.actualLaborCost, currency)} (incompleto)</span>
                   )}
