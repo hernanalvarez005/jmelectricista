@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 
 import { AddJobMaterialDialog } from "@/components/jobs/add-job-material-dialog";
 import { JobMaterialsList } from "@/components/jobs/job-materials-list";
+import { BillingBadge } from "@/components/billing/billing-badge";
+import { BillingActions } from "@/components/jobs/billing-actions";
+import { WhatsAppAction } from "@/components/whatsapp/whatsapp-action";
 import { EconomicsSummary } from "@/components/jobs/economics-summary";
 import { JobCostsPanel } from "@/components/jobs/job-costs-panel";
 import { MaterialCostCard } from "@/components/jobs/material-cost-card";
@@ -19,9 +22,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canAdminister, canOperate, requireCurrentOrg } from "@/lib/data/current-org";
 import { listExpenseCategories, getJobExpenses } from "@/lib/data/expenses";
+import { getJobBilling } from "@/lib/data/billing";
 import { getJobCostStatus } from "@/lib/data/job-costs";
 import { getJobEconomics, getJobLaborBreakdown } from "@/lib/data/job-economics";
 import { getJobDetail } from "@/lib/data/jobs";
+import { buildJobWhatsAppMessage, buildPaymentWhatsAppMessage, buildWhatsAppUrl } from "@/lib/whatsapp/messages";
+import { normalizeWhatsAppPhone, whatsappDigits } from "@/lib/whatsapp/phone";
+import { todayKeyInTZ } from "@/lib/scheduling/timezone";
 import { getJobFormOptions } from "@/lib/data/job-form-options";
 import { getJobMaterials } from "@/lib/data/job-materials";
 import { listMaterialsForQuoteItems } from "@/lib/data/materials";
@@ -50,7 +57,7 @@ export default async function JobDetailPage({
   const { id } = await params;
   const { organization, role } = await requireCurrentOrg();
 
-  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts, costStatus, expenses, expenseCategories, economics, laborSessions] =
+  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts, costStatus, expenses, expenseCategories, economics, laborSessions, billing] =
     await Promise.all([
       getJobDetail(organization.id, id),
       getJobFormOptions(organization.id),
@@ -68,15 +75,35 @@ export default async function JobDetailPage({
       listExpenseCategories(organization.id, { activeOnly: true }),
       canAdminister(role) ? getJobEconomics(organization.id, id) : Promise.resolve(null),
       canAdminister(role) ? getJobLaborBreakdown(organization.id, id, organization.timezone) : Promise.resolve([]),
+      getJobBilling(organization.id, id),
     ]);
 
   if (!detail) notFound();
 
-  const { job, clientName, addressLabel, jobTypeName, statusName, statusIsClosed, assignedMemberName, sessions, activity } =
+  const { job, clientName, clientPhone, addressLabel, jobTypeName, statusName, statusIsClosed, assignedMemberName, sessions, activity } =
     detail;
 
   const membersById = Object.fromEntries(members.map((m) => [m.id, m.fullName]));
   const timeStatus = calculateJobTimeStatus(job.estimated_minutes, sessions);
+  const todayKey = todayKeyInTZ(organization.timezone);
+  const clientWhatsApp = normalizeWhatsAppPhone(clientPhone, organization.default_country_code);
+  const confirmationUrls: Record<string, string> = {};
+  if (clientWhatsApp.status === "ok") {
+    for (const p of payments) {
+      if (!p.isVoided) {
+        confirmationUrls[p.id] = buildWhatsAppUrl(
+          clientWhatsApp.digits,
+          buildPaymentWhatsAppMessage({ clientName, amount: p.amount, currency: organization.currency, jobTitle: job.title })
+        );
+      }
+    }
+  }
+  const confirmationHint =
+    clientWhatsApp.status === "missing"
+      ? "Cargá el teléfono del cliente para enviar la confirmación"
+      : clientWhatsApp.status === "invalid"
+        ? "El teléfono del cliente no es válido para WhatsApp"
+        : null;
   const materialsWithMissing = jobMaterials.filter((m) => m.missing > 0).length;
   const materialsWithOverconsumption = jobMaterials.filter((m) => m.varianceQuantity > 0).length;
   const latestQuote = quotes[0];
@@ -122,7 +149,14 @@ export default async function JobDetailPage({
             {addressLabel ? ` · ${addressLabel}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <WhatsAppAction
+            phone={clientPhone}
+            defaultCountry={organization.default_country_code}
+            message={buildJobWhatsAppMessage({ clientName, jobTitle: job.title })}
+            label="Contactar cliente"
+            editHref={`/app/clientes/${job.client_id}`}
+          />
           <JobStatusSelect jobId={job.id} statusId={job.status_id} statuses={options.statuses} />
           <Button variant="outline" asChild>
             <Link href={`/app/trabajos/${job.id}/editar`}>Editar</Link>
@@ -271,9 +305,24 @@ export default async function JobDetailPage({
                     />
                   </>
                 )}
-                <Badge variant="outline" className="w-fit">
-                  {paymentStatusLabels[financialStatus.paymentStatus]}
-                </Badge>
+                <Row label="Cobro" value={<Badge variant="outline">{paymentStatusLabels[financialStatus.paymentStatus]}</Badge>} />
+                <Row label="Facturación" value={<BillingBadge status={billing.status} />} />
+                {billing.status === "invoiced" && (
+                  <>
+                    <Row label="Fecha" value={billing.invoicedAt ? formatDateOnly(billing.invoicedAt) : "-"} />
+                    <Row label="Comprobante" value={billing.invoiceNumber ?? "-"} />
+                  </>
+                )}
+                {canAdminister(role) && (
+                  <div className="pt-1">
+                    <BillingActions
+                      jobId={job.id}
+                      invoiced={billing.status === "invoiced"}
+                      todayKey={todayKey}
+                      current={{ invoicedAt: billing.invoicedAt, invoiceNumber: billing.invoiceNumber, notes: billing.notes }}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -333,7 +382,7 @@ export default async function JobDetailPage({
                 )}
                 <RequestPricesDialog
                   materials={jobMaterials}
-                  suppliers={suppliers.filter((s) => s.active)}
+                  suppliers={suppliers.filter((s) => s.active).map((s) => ({ id: s.id, name: s.name, phone: s.phone, whatsappDigits: whatsappDigits(s.phone, organization.default_country_code) }))}
                   trigger={
                     <Button size="sm" variant="outline">
                       Solicitar precios
@@ -397,6 +446,8 @@ export default async function JobDetailPage({
                 paymentAccounts={paymentAccounts}
                 jobStatuses={options.statuses}
                 canVoid={canAdminister(role)}
+                confirmationUrls={confirmationUrls}
+                confirmationHint={confirmationHint}
               />
             </CardContent>
           </Card>
@@ -452,6 +503,19 @@ export default async function JobDetailPage({
                           <span className="text-destructive">
                             Cobro anulado: {formatMoney(entry.amount, organization.currency)} — {entry.voidReason}
                           </span>
+                        )}
+                        {entry.kind === "billing_invoiced" && (
+                          <>
+                            {entry.edited ? "Datos de facturación actualizados" : "Facturación realizada"}
+                            {entry.invoiceNumber ? ` · comprobante ${entry.invoiceNumber}` : ""}
+                            {entry.invoicedAt ? ` · ${formatDateOnly(entry.invoicedAt)}` : ""}
+                          </>
+                        )}
+                        {entry.kind === "billing_reverted" && (
+                          <>
+                            Facturación revertida a pendiente
+                            {entry.invoiceNumber ? ` (era el comprobante ${entry.invoiceNumber})` : ""}
+                          </>
                         )}
                       </span>
                       <span className="text-muted-foreground">{formatDateTime(entry.at, organization.timezone)}</span>

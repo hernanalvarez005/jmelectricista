@@ -77,11 +77,14 @@ export async function listJobs(orgId: string, filters: JobFilters = {}): Promise
 export type JobActivityEntry =
   | { id: string; at: string; kind: "status"; fromStatusName: string | null; toStatusName: string }
   | { id: string; at: string; kind: "payment_registered"; amount: number; methodName: string }
-  | { id: string; at: string; kind: "payment_voided"; amount: number; voidReason: string };
+  | { id: string; at: string; kind: "payment_voided"; amount: number; voidReason: string }
+  | { id: string; at: string; kind: "billing_invoiced"; invoicedAt: string | null; invoiceNumber: string | null; edited: boolean }
+  | { id: string; at: string; kind: "billing_reverted"; invoiceNumber: string | null };
 
 export type JobDetail = {
   job: Tables<"jobs">;
   clientName: string;
+  clientPhone: string | null;
   addressLabel: string | null;
   jobTypeName: string | null;
   statusName: string;
@@ -97,7 +100,7 @@ export async function getJobDetail(orgId: string, jobId: string): Promise<JobDet
   const { data: job, error } = await supabase
     .from("jobs")
     .select(
-      "*, client:clients(name), address:client_addresses(label, street, locality), job_type:job_types(name), status:job_statuses(name, is_closed)"
+      "*, client:clients(name, phone), address:client_addresses(label, street, locality), job_type:job_types(name), status:job_statuses(name, is_closed)"
     )
     .eq("organization_id", orgId)
     .eq("id", jobId)
@@ -110,6 +113,7 @@ export async function getJobDetail(orgId: string, jobId: string): Promise<JobDet
     { data: sessions, error: sessionsError },
     { data: historyRows, error: historyError },
     { data: paymentRows, error: paymentsError },
+    { data: billingRows, error: billingError },
     members,
   ] = await Promise.all([
     supabase
@@ -126,12 +130,18 @@ export async function getJobDetail(orgId: string, jobId: string): Promise<JobDet
       .from("job_payments")
       .select("id, amount, created_at, voided_at, void_reason, method:payment_methods(name)")
       .eq("job_id", jobId),
+    // Historial de facturación: RLS lo limita a owner/admin (para el resto vuelve vacío).
+    supabase
+      .from("job_billing_history")
+      .select("id, from_status, to_status, invoiced_at, invoice_number, changed_at")
+      .eq("job_id", jobId),
     getOrgMembers(orgId),
   ]);
 
   if (sessionsError) throw sessionsError;
   if (historyError) throw historyError;
   if (paymentsError) throw paymentsError;
+  if (billingError) throw billingError;
 
   const activity: JobActivityEntry[] = [
     ...(historyRows ?? []).map(
@@ -164,6 +174,12 @@ export async function getJobDetail(orgId: string, jobId: string): Promise<JobDet
       }
       return entries;
     }),
+    ...(billingRows ?? []).map(
+      (b): JobActivityEntry =>
+        b.to_status === "invoiced"
+          ? { id: b.id, at: b.changed_at, kind: "billing_invoiced", invoicedAt: b.invoiced_at, invoiceNumber: b.invoice_number, edited: b.from_status === "invoiced" }
+          : { id: b.id, at: b.changed_at, kind: "billing_reverted", invoiceNumber: b.invoice_number }
+    ),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
   const memberName = job.assigned_member_id
@@ -177,6 +193,7 @@ export async function getJobDetail(orgId: string, jobId: string): Promise<JobDet
   return {
     job,
     clientName: job.client?.name ?? "-",
+    clientPhone: job.client?.phone ?? null,
     addressLabel: addressParts.length > 0 ? addressParts.join(" · ") : null,
     jobTypeName: job.job_type?.name ?? null,
     statusName: job.status?.name ?? "-",

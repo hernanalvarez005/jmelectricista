@@ -1,4 +1,4 @@
-import { MessageCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -10,7 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClientDetail } from "@/lib/data/clients";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { getClientFinancialSummary, getClientJobsFinancialDetail } from "@/lib/data/payments";
-import { buildWhatsAppLink } from "@/lib/format/phone";
+import { BillingBadge } from "@/components/billing/billing-badge";
+import { WhatsAppAction } from "@/components/whatsapp/whatsapp-action";
+import { getBillingByJobIds } from "@/lib/data/billing";
+import { buildClientWhatsAppMessage } from "@/lib/whatsapp/messages";
 import { formatDateOnly } from "@/lib/format/dates";
 import { formatMoney } from "@/lib/format/money";
 import { jobPriorityLabel } from "@/lib/validations/job";
@@ -32,8 +35,11 @@ export default async function ClientDetailPage({
   if (!detail) notFound();
 
   const { client, addresses, jobs } = detail;
-  const waLink = buildWhatsAppLink(client.phone);
   const financialByJob = new Map(jobsFinancial.map((f) => [f.jobId, f]));
+  const billingByJob = await getBillingByJobIds(
+    organization.id,
+    jobs.map((j) => j.id)
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,13 +56,12 @@ export default async function ClientDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {waLink && (
-            <Button variant="outline" asChild>
-              <a href={waLink} target="_blank" rel="noopener noreferrer">
-                <MessageCircle /> WhatsApp
-              </a>
-            </Button>
-          )}
+          <WhatsAppAction
+            phone={client.phone}
+            defaultCountry={organization.default_country_code}
+            message={buildClientWhatsAppMessage({ clientName: client.name })}
+            editHref={`/app/clientes/${client.id}`}
+          />
           <ClientFormSheet client={client} trigger={<Button variant="outline">Editar</Button>} />
         </div>
       </div>
@@ -163,11 +168,18 @@ export default async function ClientDetailPage({
                         {job.target_date ? ` · ${formatDateOnly(job.target_date)}` : ""}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex flex-col items-end gap-1 text-right">
                       {fin?.contractedAmount != null ? (
                         <p className="font-medium">{formatMoney(fin.contractedAmount, organization.currency)}</p>
                       ) : null}
-                      <Badge variant="outline">{paymentStatusLabels[fin?.paymentStatus ?? "no_contract"]}</Badge>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Badge variant="outline">
+                          {fin?.paymentStatus === "partial" && fin.outstandingAmount != null
+                            ? `Pendiente ${formatMoney(fin.outstandingAmount, organization.currency)}`
+                            : paymentStatusLabels[fin?.paymentStatus ?? "no_contract"]}
+                        </Badge>
+                        {billingByJob.get(job.id)?.isBillable && <BillingBadge status={billingByJob.get(job.id)!.status} />}
+                      </div>
                     </div>
                   </Link>
                 );

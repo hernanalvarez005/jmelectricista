@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { FileText, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -110,16 +110,38 @@ function ReceiptLink({ paymentId }: { paymentId: string }) {
   );
 }
 
+function ConfirmationLink({ url, hint }: { url: string | undefined; hint: string | null }) {
+  if (url) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+      >
+        <MessageCircle className="size-3.5" /> Enviar confirmación
+      </a>
+    );
+  }
+  return hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null;
+}
+
 export function PaymentHistoryList({
   jobId,
   payments,
   currency,
   canVoid,
+  confirmationUrls = {},
+  confirmationHint = null,
 }: {
   jobId: string;
   payments: JobPaymentItem[];
   currency: string;
   canVoid: boolean;
+  /** paymentId -> enlace de WhatsApp con la confirmación (solo si el teléfono del cliente es válido). */
+  confirmationUrls?: Record<string, string>;
+  /** Por qué no hay enlace de confirmación (sin teléfono / formato inválido). */
+  confirmationHint?: string | null;
 }) {
   if (payments.length === 0) {
     return <p className="text-sm text-muted-foreground">No hay cobros registrados para este trabajo.</p>;
@@ -157,6 +179,11 @@ export function PaymentHistoryList({
                 <ReceiptLink paymentId={p.id} />
               </div>
             )}
+            {!p.isVoided && (
+              <div className="mt-2">
+                <ConfirmationLink url={confirmationUrls[p.id]} hint={confirmationHint} />
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -170,7 +197,7 @@ export function PaymentHistoryList({
               <TableHead>Medio</TableHead>
               <TableHead>Cuenta</TableHead>
               <TableHead>Referencia</TableHead>
-              <TableHead>Comprobante</TableHead>
+              <TableHead>Documentos</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="w-20" />
             </TableRow>
@@ -185,7 +212,13 @@ export function PaymentHistoryList({
                 <TableCell>{p.methodName}</TableCell>
                 <TableCell>{p.accountName ?? "-"}</TableCell>
                 <TableCell>{p.reference ?? "-"}</TableCell>
-                <TableCell>{p.receiptPath ? <ReceiptLink paymentId={p.id} /> : "-"}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col items-start gap-1">
+                    {p.receiptPath && <ReceiptLink paymentId={p.id} />}
+                    {!p.isVoided && <ConfirmationLink url={confirmationUrls[p.id]} hint={confirmationHint} />}
+                    {!p.receiptPath && p.isVoided && "-"}
+                  </div>
+                </TableCell>
                 <TableCell>
                   {p.isVoided ? (
                     <span title={p.voidReason ?? undefined}>

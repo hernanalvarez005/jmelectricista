@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import { getWeekdayLoad } from "@/lib/data/analysis";
+import { getBillingPendingSummary } from "@/lib/data/billing";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { countClosedJobsWithIncompleteMaterialCost } from "@/lib/data/job-costs";
 import { getPurchasesDashboardStats } from "@/lib/data/purchases";
@@ -21,7 +22,7 @@ import { weekdayLabel } from "@/lib/scheduling/timezone";
 
 export default async function DashboardPage() {
   const { organization } = await requireCurrentOrg();
-  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance, purchasesStats, closedIncompleteCost, weekdayLoad] = await Promise.all([
+  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance, purchasesStats, closedIncompleteCost, weekdayLoad, billingSummary] = await Promise.all([
     getDashboardData(organization.id, organization.timezone),
     getJobsWithMissingMaterials(organization.id),
     getQuoteDashboardStats(organization.id, organization.timezone),
@@ -30,6 +31,7 @@ export default async function DashboardPage() {
     getPurchasesDashboardStats(organization.id, organization.timezone),
     countClosedJobsWithIncompleteMaterialCost(organization.id),
     getWeekdayLoad(organization.id, organization.timezone, 8),
+    getBillingPendingSummary(organization.id),
   ]);
 
   const busiestDay = weekdayLoad.days.reduce<(typeof weekdayLoad.days)[number] | null>(
@@ -75,6 +77,13 @@ export default async function DashboardPage() {
       value: paymentsStats.closedJobsWithBalanceCount,
       icon: AlertTriangle,
       alert: paymentsStats.closedJobsWithBalanceCount > 0 ? ("destructive" as const) : undefined,
+    },
+    {
+      label: "Pendientes de facturar",
+      value: billingSummary.pending,
+      hint: `${billingSummary.paidAndPending} ya cobrado${billingSummary.paidAndPending === 1 ? "" : "s"} completamente`,
+      icon: FileText,
+      alert: billingSummary.paidAndPending > 0 ? ("warning" as const) : undefined,
     },
     {
       label: "Compras del mes",
@@ -133,6 +142,7 @@ export default async function DashboardPage() {
               >
                 {stat.value}
               </p>
+              {"hint" in stat && stat.hint && <p className="mt-1 text-xs text-muted-foreground">{stat.hint}</p>}
             </CardContent>
           </Card>
         ))}

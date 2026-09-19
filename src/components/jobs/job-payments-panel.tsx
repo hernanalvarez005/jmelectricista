@@ -48,6 +48,8 @@ export function JobPaymentsPanel({
   paymentAccounts,
   jobStatuses,
   canVoid,
+  confirmationUrls,
+  confirmationHint,
 }: {
   jobId: string;
   currency: string;
@@ -58,6 +60,8 @@ export function JobPaymentsPanel({
   paymentAccounts: Tables<"payment_accounts">[];
   jobStatuses: { id: string; name: string }[];
   canVoid: boolean;
+  confirmationUrls?: Record<string, string>;
+  confirmationHint?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -136,7 +140,14 @@ export function JobPaymentsPanel({
         )}
       </div>
 
-      <PaymentHistoryList jobId={jobId} payments={payments} currency={currency} canVoid={canVoid} />
+      <PaymentHistoryList
+        jobId={jobId}
+        payments={payments}
+        currency={currency}
+        canVoid={canVoid}
+        confirmationUrls={confirmationUrls}
+        confirmationHint={confirmationHint}
+      />
 
       <AlertDialog open={showJobStatusPrompt} onOpenChange={setShowJobStatusPrompt}>
         <AlertDialogContent>

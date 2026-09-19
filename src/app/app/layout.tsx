@@ -9,7 +9,7 @@ export default async function AppShellLayout({ children }: { children: React.Rea
   return (
     <SidebarProvider>
       <AppSidebar orgName={organization.name} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <AppHeader title={organization.name} userLabel={userEmail ?? ""} />
         <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">{children}</div>
       </SidebarInset>

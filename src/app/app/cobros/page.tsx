@@ -1,9 +1,11 @@
 import { Landmark, ListChecks, TrendingUp, Wallet } from "lucide-react";
 
+import { BillingFilterLinks, BillingOverview } from "@/components/payments/billing-overview";
 import { OutstandingBalancesTable } from "@/components/payments/outstanding-balances-table";
 import { PaymentsFilterBar } from "@/components/payments/payments-filter-bar";
 import { RecentPaymentsList } from "@/components/payments/recent-payments-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getBillingOverview } from "@/lib/data/billing";
 import { requireCurrentOrg } from "@/lib/data/current-org";
 import {
   getJobsWithOutstandingBalance,
@@ -15,11 +17,12 @@ import {
 import { listClients } from "@/lib/data/clients";
 import { addDaysToKey, todayKeyInTZ } from "@/lib/scheduling/timezone";
 import { formatMoney } from "@/lib/format/money";
+import { parseBillingFilter } from "@/lib/validations/billing";
 
 export default async function CobrosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ client?: string; method?: string; account?: string; period?: string }>;
+  searchParams: Promise<{ client?: string; method?: string; account?: string; period?: string; billing?: string }>;
 }) {
   const params = await searchParams;
   const { organization } = await requireCurrentOrg();
@@ -28,7 +31,9 @@ export default async function CobrosPage({
   const sinceDate =
     params.period === "30" ? addDaysToKey(todayKey, -30) : params.period === "90" ? addDaysToKey(todayKey, -90) : undefined;
 
-  const [stats, balances, recentPayments, clients, paymentMethods, paymentAccounts] = await Promise.all([
+  const billingFilter = parseBillingFilter(params.billing);
+
+  const [stats, balances, recentPayments, clients, paymentMethods, paymentAccounts, billingOverview] = await Promise.all([
     getPaymentsDashboardStats(organization.id, organization.timezone),
     getJobsWithOutstandingBalance(organization.id),
     getRecentPayments(organization.id, {
@@ -40,6 +45,7 @@ export default async function CobrosPage({
     listClients(organization.id),
     listPaymentMethods(organization.id, { activeOnly: true }),
     listPaymentAccounts(organization.id, { activeOnly: true }),
+    getBillingOverview(organization.id, billingFilter),
   ]);
 
   const kpis = [
@@ -80,6 +86,20 @@ export default async function CobrosPage({
           ) : (
             <OutstandingBalancesTable balances={balances} currency={organization.currency} />
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Facturación</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Estado de cobro, saldo y facturación de cada trabajo con cotización aceptada o cobros. &quot;Facturado&quot; es una marca interna: no
+            significa que el comprobante esté validado en ARCA.
+          </p>
+          <BillingFilterLinks current={billingFilter} searchParams={params} />
+          <BillingOverview items={billingOverview} currency={organization.currency} />
         </CardContent>
       </Card>
 
