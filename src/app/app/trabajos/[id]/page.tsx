@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 
 import { AddJobMaterialDialog } from "@/components/jobs/add-job-material-dialog";
 import { JobMaterialsList } from "@/components/jobs/job-materials-list";
+import { EconomicsSummary } from "@/components/jobs/economics-summary";
+import { JobCostsPanel } from "@/components/jobs/job-costs-panel";
+import { MaterialCostCard } from "@/components/jobs/material-cost-card";
 import { JobPaymentsPanel } from "@/components/jobs/job-payments-panel";
 import { JobSessionDialog } from "@/components/jobs/job-session-dialog";
 import { JobSessionsList } from "@/components/jobs/job-sessions-list";
@@ -15,7 +18,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canAdminister, canOperate, requireCurrentOrg } from "@/lib/data/current-org";
+import { listExpenseCategories, getJobExpenses } from "@/lib/data/expenses";
 import { getJobCostStatus } from "@/lib/data/job-costs";
+import { getJobEconomics, getJobLaborBreakdown } from "@/lib/data/job-economics";
 import { getJobDetail } from "@/lib/data/jobs";
 import { getJobFormOptions } from "@/lib/data/job-form-options";
 import { getJobMaterials } from "@/lib/data/job-materials";
@@ -45,7 +50,7 @@ export default async function JobDetailPage({
   const { id } = await params;
   const { organization, role } = await requireCurrentOrg();
 
-  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts, costStatus] =
+  const [detail, options, members, jobMaterials, suppliers, quotes, allMaterials, financialStatus, payments, paymentMethods, paymentAccounts, costStatus, expenses, expenseCategories, economics, laborSessions] =
     await Promise.all([
       getJobDetail(organization.id, id),
       getJobFormOptions(organization.id),
@@ -59,6 +64,10 @@ export default async function JobDetailPage({
       listPaymentMethods(organization.id, { activeOnly: true }),
       listPaymentAccounts(organization.id, { activeOnly: true }),
       getJobCostStatus(organization.id, id),
+      getJobExpenses(organization.id, id),
+      listExpenseCategories(organization.id, { activeOnly: true }),
+      canAdminister(role) ? getJobEconomics(organization.id, id) : Promise.resolve(null),
+      canAdminister(role) ? getJobLaborBreakdown(organization.id, id, organization.timezone) : Promise.resolve([]),
     ]);
 
   if (!detail) notFound();
@@ -89,6 +98,9 @@ export default async function JobDetailPage({
     }
     if (!costStatus.materialCostComplete) {
       closeWarnings.push("Costo real de materiales incompleto: hay consumos sin valoración histórica.");
+    }
+    if (economics && !economics.laborCostComplete) {
+      closeWarnings.push("Costo de mano de obra incompleto: hay sesiones sin tarifa, responsable o tiempo real.");
     }
     if (materialsPending > 0) {
       closeWarnings.push(`${materialsPending} material${materialsPending === 1 ? "" : "es"} con cantidad pendiente de consumir.`);
@@ -126,6 +138,7 @@ export default async function JobDetailPage({
             <TabsTrigger value="materiales">Materiales</TabsTrigger>
             <TabsTrigger value="cotizacion">Cotización</TabsTrigger>
             <TabsTrigger value="cobros">Cobros</TabsTrigger>
+            <TabsTrigger value="costos">Costos</TabsTrigger>
             <TabsTrigger value="actividad">Actividad</TabsTrigger>
           </TabsList>
         </div>
@@ -265,60 +278,23 @@ export default async function JobDetailPage({
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Costos de materiales</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm sm:max-w-md">
-              <Row
-                label="Costo estimado"
-                value={
-                  costStatus.estimatedMaterialCost === null
-                    ? "Sin cotización aceptada"
-                    : formatMoney(costStatus.estimatedMaterialCost, organization.currency)
-                }
-              />
-              <Row
-                label="Costo real"
-                value={
-                  !hasMaterialConsumption ? (
-                    <span className="text-muted-foreground">Sin consumos todavía</span>
-                  ) : costStatus.materialCostComplete ? (
-                    formatMoney(costStatus.actualMaterialCost, organization.currency)
-                  ) : (
-                    <span className="text-warning">Costo real incompleto</span>
-                  )
-                }
-              />
-              <Row
-                label="Desvío"
-                value={
-                  costStatus.materialCostVariance === null || !hasMaterialConsumption ? (
-                    "-"
-                  ) : (
-                    <span className={costStatus.materialCostVariance > 0 ? "font-medium text-warning" : "text-success"}>
-                      {costStatus.materialCostVariance > 0 ? "+" : ""}
-                      {formatMoney(costStatus.materialCostVariance, organization.currency)}
-                      {materialsPending > 0 ? " (parcial)" : ""}
-                    </span>
-                  )
-                }
-              />
-              {!costStatus.materialCostComplete && (
-                <p className="text-xs text-warning">
-                  Sin valoración histórica completa: hay consumos de stock anterior a la valoración. No se muestra un total parcial como si fuera completo.
-                </p>
-              )}
-              {hasMaterialConsumption && materialsPending > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Desvío parcial: todavía hay materiales pendientes de consumir, así que el real se compara contra el estimado completo.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Solo materiales, con el costo al que se consumió cada uno. No incluye mano de obra ni otros costos.
-              </p>
-            </CardContent>
-          </Card>
+          {economics && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Economía del trabajo</CardTitle>
+              </CardHeader>
+              <CardContent className="sm:max-w-xl">
+                <EconomicsSummary economics={economics} currency={organization.currency} />
+              </CardContent>
+            </Card>
+          )}
+
+          <MaterialCostCard
+            costStatus={costStatus}
+            hasConsumption={hasMaterialConsumption}
+            materialsPending={materialsPending}
+            currency={organization.currency}
+          />
         </TabsContent>
 
         <TabsContent value="agenda" className="mt-4">
@@ -328,6 +304,7 @@ export default async function JobDetailPage({
               <JobSessionDialog
                 jobId={job.id}
                 members={options.members}
+                defaultMemberId={job.assigned_member_id}
                 trigger={<Button size="sm">Programar sesión</Button>}
               />
             </CardHeader>
@@ -423,6 +400,24 @@ export default async function JobDetailPage({
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="costos" className="mt-4">
+          <JobCostsPanel
+            jobId={job.id}
+            currency={organization.currency}
+            timezone={organization.timezone}
+            economics={economics}
+            laborSessions={laborSessions}
+            members={options.members}
+            expenses={expenses}
+            expenseCategories={expenseCategories}
+            costStatus={costStatus}
+            hasMaterialConsumption={hasMaterialConsumption}
+            materialsPending={materialsPending}
+            isAdmin={canAdminister(role)}
+            canOperate={canOperate(role)}
+          />
         </TabsContent>
 
         <TabsContent value="actividad" className="mt-4">

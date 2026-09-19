@@ -33,10 +33,13 @@ const NONE = "__none__";
 export function JobSessionDialog({
   jobId,
   members,
+  defaultMemberId,
   trigger,
 }: {
   jobId: string;
   members: { id: string; fullName: string }[];
+  /** Responsable del trabajo: se preselecciona para que la sesión no quede sin responsable (necesario para el costo laboral). */
+  defaultMemberId?: string | null;
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -59,7 +62,7 @@ export function JobSessionDialog({
       date: "",
       startTime: "",
       endTime: "",
-      assignedMemberId: "",
+      assignedMemberId: defaultMemberId ?? "",
       notes: "",
     },
   });
@@ -67,7 +70,7 @@ export function JobSessionDialog({
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (next) {
-      reset();
+      reset({ date: "", startTime: "", endTime: "", assignedMemberId: defaultMemberId ?? "", notes: "" });
       setServerError(null);
       setClientRequestId(crypto.randomUUID());
     }

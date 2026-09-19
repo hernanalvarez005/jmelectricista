@@ -1,10 +1,11 @@
-import { AlertTriangle, Boxes, CalendarClock, CalendarDays, Clock, FileText, ListTodo, ShoppingCart, Wallet, Wrench } from "lucide-react";
+import { AlertTriangle, Boxes, CalendarClock, ChartColumn, CalendarDays, Clock, FileText, ListTodo, ShoppingCart, Wallet, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { WeeklyLoadBars } from "@/components/weekly-load-bars";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireCurrentOrg } from "@/lib/data/current-org";
+import { getWeekdayLoad } from "@/lib/data/analysis";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { countClosedJobsWithIncompleteMaterialCost } from "@/lib/data/job-costs";
 import { getPurchasesDashboardStats } from "@/lib/data/purchases";
@@ -15,10 +16,12 @@ import { formatDateOnly } from "@/lib/format/dates";
 import { formatMinutes } from "@/lib/format/duration";
 import { formatMoney } from "@/lib/format/money";
 import { formatQuantity } from "@/lib/format/quantity";
+import { formatHoursDecimal } from "@/lib/format/variance";
+import { weekdayLabel } from "@/lib/scheduling/timezone";
 
 export default async function DashboardPage() {
   const { organization } = await requireCurrentOrg();
-  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance, purchasesStats, closedIncompleteCost] = await Promise.all([
+  const [data, jobsWithMissing, quoteStats, paymentsStats, jobsWithBalance, purchasesStats, closedIncompleteCost, weekdayLoad] = await Promise.all([
     getDashboardData(organization.id, organization.timezone),
     getJobsWithMissingMaterials(organization.id),
     getQuoteDashboardStats(organization.id, organization.timezone),
@@ -26,7 +29,13 @@ export default async function DashboardPage() {
     getJobsWithOutstandingBalance(organization.id),
     getPurchasesDashboardStats(organization.id, organization.timezone),
     countClosedJobsWithIncompleteMaterialCost(organization.id),
+    getWeekdayLoad(organization.id, organization.timezone, 8),
   ]);
+
+  const busiestDay = weekdayLoad.days.reduce<(typeof weekdayLoad.days)[number] | null>(
+    (best, d) => (d.averageMinutes > (best?.averageMinutes ?? 0) ? d : best),
+    null
+  );
 
   const stats = [
     { label: "Trabajos activos", value: data.activeJobsCount, icon: Wrench },
@@ -146,6 +155,33 @@ export default async function DashboardPage() {
               <p className="text-xl font-semibold">{quoteStats.acceptedThisMonth}</p>
               <p className="text-xs text-muted-foreground">Aceptadas (mes)</p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Carga real (últimas 8 semanas)</CardTitle>
+            <ChartColumn className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {busiestDay ? (
+              <>
+                <p className="text-2xl font-semibold">{weekdayLabel(busiestDay.weekday)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatHoursDecimal(busiestDay.averageMinutes)} promedio, el día con más horas reales.{" "}
+                  <Link href="/app/analisis" className="font-medium text-foreground hover:underline">
+                    Ver análisis
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Todavía no hay horas reales registradas.{" "}
+                <Link href="/app/analisis" className="font-medium text-foreground hover:underline">
+                  Ver análisis
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

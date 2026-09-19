@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Boxes,
+  ChartColumn,
   CalendarDays,
   FileText,
   LayoutDashboard,
@@ -29,6 +30,7 @@ export const mainNavItems: NavItem[] = [
   { title: "Proveedores", href: "/app/proveedores", icon: Truck },
   { title: "Compras", href: "/app/compras", icon: ShoppingCart },
   { title: "Cobros", href: "/app/cobros", icon: Receipt },
+  { title: "Análisis", href: "/app/analisis", icon: ChartColumn },
 ];
 
 export const footerNavItems: NavItem[] = [

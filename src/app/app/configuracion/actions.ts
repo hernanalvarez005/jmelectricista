@@ -14,6 +14,7 @@ import {
   type JobTypeInput,
   type OrganizationSettingsInput,
 } from "@/lib/validations/settings";
+import { expenseCategorySchema, type ExpenseCategoryInput } from "@/lib/validations/expense";
 import {
   paymentAccountSchema,
   paymentMethodSchema,
@@ -324,6 +325,65 @@ export async function updatePaymentAccountAction(id: string, input: PaymentAccou
   if (error) {
     if (error.code === "23505") return { error: "Ya existe una cuenta con ese nombre." };
     return { error: "No se pudo actualizar la cuenta." };
+  }
+
+  revalidatePath("/app/configuracion");
+  return { id };
+}
+
+export async function createExpenseCategoryAction(input: ExpenseCategoryInput): Promise<ActionResult> {
+  const parsed = expenseCategorySchema.safeParse(input);
+  if (!parsed.success) return { error: "Revisá los datos de la categoría." };
+
+  const { organization, role } = await requireCurrentOrg();
+  if (!requireAdmin(role)) return { error: "No tenés permiso para crear categorías de gasto." };
+
+  const supabase = await createSupabaseClient();
+  const { data: last } = await supabase
+    .from("job_expense_categories")
+    .select("sort_order")
+    .eq("organization_id", organization.id)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data, error } = await supabase
+    .from("job_expense_categories")
+    .insert({
+      organization_id: organization.id,
+      name: parsed.data.name,
+      active: parsed.data.active,
+      sort_order: (last?.sort_order ?? 0) + 10,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    if (error?.code === "23505") return { error: "Ya existe una categoría con ese nombre." };
+    return { error: "No se pudo crear la categoría." };
+  }
+
+  revalidatePath("/app/configuracion");
+  return { id: data.id };
+}
+
+export async function updateExpenseCategoryAction(id: string, input: ExpenseCategoryInput): Promise<ActionResult> {
+  const parsed = expenseCategorySchema.safeParse(input);
+  if (!parsed.success) return { error: "Revisá los datos de la categoría." };
+
+  const { organization, role } = await requireCurrentOrg();
+  if (!requireAdmin(role)) return { error: "No tenés permiso para editar categorías de gasto." };
+
+  const supabase = await createSupabaseClient();
+  const { error } = await supabase
+    .from("job_expense_categories")
+    .update({ name: parsed.data.name, active: parsed.data.active })
+    .eq("id", id)
+    .eq("organization_id", organization.id);
+
+  if (error) {
+    if (error.code === "23505") return { error: "Ya existe una categoría con ese nombre." };
+    return { error: "No se pudo actualizar la categoría." };
   }
 
   revalidatePath("/app/configuracion");
