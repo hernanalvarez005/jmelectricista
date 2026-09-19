@@ -50,6 +50,7 @@ Completá `.env.local` con los datos de tu proyecto de Supabase (ver abajo).
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase (Project Settings → API). |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave anónima/pública del proyecto. Segura para el navegador: el acceso real lo controla RLS. |
+| `NEXT_PUBLIC_APP_URL` | URL pública de la app (p.ej. `https://tu-dominio.vercel.app`, sin barra final). Se usa **solo** para armar los enlaces de cotización que se comparten con clientes. Si falta, se deduce del `Host` del request; en producción conviene definirla para que el enlace no dependa del entorno. |
 
 La aplicación **no usa la `service_role` key** en ningún momento — todas las
 operaciones sensibles (por ejemplo, el alta de una organización) se resuelven
@@ -486,6 +487,85 @@ Fuera de alcance: nómina, sueldos, asistencia, impuestos/IVA, costos fijos o in
 contabilidad, cuadrillas (una persona por sesión), reservas de stock, IA y recomendaciones de precio. Costo laboral
 *estimado* (horas estimadas x tarifa) no se implementó: el costo laboral real es `horas reales x costo hora`.
 
+## WhatsApp, cotizaciones públicas y facturación (Fase 5.1)
+
+Última fase funcional de la V1. No agrega costos ni análisis nuevos.
+
+### WhatsApp (solo enlaces, sin API)
+
+No hay WhatsApp Business API, ni envíos automáticos, ni webhooks: cada botón abre un enlace
+`https://wa.me/<número>?text=<mensaje>` en una pestaña nueva y **la persona decide si envía**. No se guarda
+ninguna conversación ni se registra en la actividad del trabajo que se abrió WhatsApp.
+
+- `src/lib/whatsapp/phone.ts`: `normalizeWhatsAppPhone(raw, defaultCountry)` y `buildWhatsAppUrl(digits, message)`.
+  La normalización usa `libphonenumber-js` (build *min*): acepta espacios, guiones, paréntesis, `+`, `00` y
+  números nacionales; devuelve solo dígitos internacionales (E.164 sin `+`) o `null` si el número no es válido.
+  Para Argentina se aplica la regla de móviles de WhatsApp (`+54 9 <área> <número>`): `11 5123-4567` →
+  `5491151234567`.
+- `src/lib/whatsapp/messages.ts`: mensajes de cliente, trabajo, cotización y confirmación de cobro. Los textos
+  son fijos (no hay editor de plantillas) y se codifican con `encodeURIComponent` (tildes, `$`, URLs, saltos de
+  línea). **Nunca** incluyen costos, márgenes ni datos internos: la confirmación de cobro lleva solo cliente,
+  monto y trabajo.
+- País por defecto: `organizations.default_country_code` (ISO-3166 alfa-2, default `AR`, editable en
+  Configuración → Organización). Un número con prefijo internacional (`+595…`) se respeta siempre; el país por
+  defecto solo se usa para números nacionales.
+- Estados de la UI: sin teléfono → "Agregar teléfono para contactar por WhatsApp"; teléfono con formato inválido →
+  "El teléfono del cliente no tiene un formato válido para WhatsApp." + "Editar cliente".
+- Puntos de entrada: ficha de cliente ("Enviar WhatsApp"), trabajo ("Contactar cliente"), cotización ("Enviar por
+  WhatsApp"), cobro ("Enviar confirmación"), proveedores y solicitud de precios (ya existían).
+
+### Enlaces públicos de cotización
+
+`/cotizacion/<token>` es la **única** ruta pública nueva. No requiere login ni da acceso a nada más del sistema.
+
+- Tabla `quote_share_links` (token de 48 hex generado en la base, único; a lo sumo **un enlace activo por
+  cotización**, garantizado por un índice único parcial). Compartir de nuevo reutiliza el enlace activo; revocar
+  lo desactiva **de inmediato** (la página y el PDF responden 404) y compartir después crea un token nuevo. Los
+  enlaces revocados se conservan como historial. Solo se puede compartir una cotización que ya no es borrador.
+- La resolución pública pasa por RPC `SECURITY DEFINER` (`get_public_quote`, `record_quote_share_open`)
+  ejecutables por `anon`. **`anon` no tiene ningún `select`** sobre `quote_share_links`, `quotes`, `jobs`,
+  `clients`, ni sobre las tablas/vistas económicas: no puede listar ni enumerar nada. `get_public_quote` arma un
+  DTO explícito (número, fecha, cliente, trabajo, ítems, subtotal, descuento, total, condiciones, validez,
+  marca de la organización) con la lista blanca `PUBLIC_QUOTE_KEYS` / `PUBLIC_QUOTE_ITEM_KEYS` en
+  `src/lib/data/public-quote.ts`; nunca se devuelve la fila completa de la cotización.
+- **Privacidad económica**: la página pública y el PDF público no leen ni exponen `member_labor_rates`,
+  `job_session_labor_costs`, `job_expenses`, `job_economics_status`, contribución, márgenes, costos de proveedor
+  o de compra, costo real de materiales, `cost_unit_price`, stock, notas internas ni ids internos. Hay tests que
+  recorren el DTO buscando esas claves y valores marcadores.
+- **PDF**: el bucket de Storage sigue **privado**. El PDF público se genera en memoria a partir del mismo DTO
+  seguro (`src/lib/pdf/public-quote-pdf.ts`, ruta `/cotizacion/<token>/pdf`, `Cache-Control: no-store`); no se
+  usan URLs firmadas de 5 minutos ni `service_role`. Como una cotización enviada es inmutable, el contenido es
+  exactamente el snapshot enviado.
+- Seguimiento mínimo: `open_count` (incremento atómico en SQL) y `last_opened_at`. No se guarda IP, user-agent
+  ni se usan analíticas externas. La ruta es dinámica y sin caché, así que una revocación se refleja al instante.
+  Los tokens no se loguean.
+- Interno: la ficha de la cotización tiene la tarjeta "Compartir con el cliente" (estado del enlace, aperturas,
+  última apertura, copiar enlace, enviar por WhatsApp, revocar). Solo owner/admin/worker pueden generar o revocar
+  (viewer no).
+
+### Estado de facturación (marca interna)
+
+`job_billing` (una fila por trabajo, `pending`/`invoiced`, fecha, número de comprobante y notas opcionales) +
+`job_billing_history` (append-only). Sin fila, el trabajo está **pendiente** (derivado).
+
+- "Facturado" es una **marca operativa interna**: significa "ya emití el comprobante afuera". No está integrado con
+  ARCA, no obtiene CAE, no calcula IVA ni emite facturas A/B/C. El número de comprobante es texto libre.
+- Owner/admin marcan y revierten (`mark_job_invoiced`, `revert_job_billing`, con confirmación en la UI). La fecha
+  por defecto es "hoy" en la zona de la organización y se maneja como fecha (`date`), sin corrimientos por UTC.
+  Revertir no borra nada: cada cambio queda en el historial y en la actividad del trabajo. Worker y viewer ven el
+  estado pero no lo cambian; el historial completo solo lo lee owner/admin (RLS). La consistencia entre
+  organizaciones se valida en la base.
+- **Tres dimensiones independientes, nunca derivadas entre sí**: estado del trabajo (Consulta, Finalizado…),
+  estado de cobro (Sin cobros / Cobro parcial / Cobrado) y estado de facturación (Pendiente / Facturado). Un
+  trabajo puede estar cobrado y pendiente de facturar, facturado con saldo, o finalizado sin cobrar ni facturar;
+  marcar como facturado no cambia el trabajo ni los cobros y viceversa.
+- Vistas `job_billing_status` y `billing_pending_summary` (`security_invoker`). "Pendiente de facturar" solo cuenta
+  trabajos *facturables* (facturados, con cotización aceptada o con algún cobro vigente), para que una consulta
+  inicial no infle el contador. El dashboard suma un único KPI "Pendientes de facturar" con el detalle "N ya
+  cobrados completamente"; `/app/cobros` permite filtrar Todas / Pendiente / Realizada.
+- Migraciones: `20260924000001`..`04`. Tests: `tests/db/{quote-share,billing,org-country}.test.ts`,
+  `tests/unit/{whatsapp,public-quote-pdf,costs-tab-slot-guard}.test.ts`.
+
 ## Tests
 
 ```
@@ -595,9 +675,13 @@ carga real por día de la semana, y estabilización de la suite de integración.
 promedio ponderado móvil), stock negativo bloqueado, inicialización auditada de
 stock histórico y costo real de materiales por trabajo (ver sección arriba).
 
+**Fase 5.1**: WhatsApp transversal con enlaces `wa.me` (sin API), enlaces públicos y revocables de
+cotización con PDF privado y sin datos internos, estado de facturación como marca interna independiente del
+estado del trabajo y del cobro, y cierre funcional de la V1.
+
 Fuera de alcance (a propósito, ver secciones de arriba y el prompt de Fase 2):
-cobros/facturación fiscal, caja, cuentas corrientes de proveedores, reserva de
-stock, integración con Google Calendar o la API de WhatsApp, IA, rutas,
+facturación fiscal (ARCA/CAE/IVA), caja, cuentas corrientes de proveedores, reserva de
+stock, integración con Google Calendar o la API de WhatsApp Business, IA, rutas,
 cuadrillas avanzadas. La arquitectura (multi-organización, `organization_id`
 en todo, catálogos configurables) está pensada para incorporarlos después sin
 rediseñar.
